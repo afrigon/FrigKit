@@ -40,7 +40,7 @@ public enum HTTPMethod: String {
     }
 }
 
-public enum HTTPStatusCode: UInt16 {
+public enum HTTPStatusCode: Int {
     case
     `continue` = 100,
     switchingProtocols = 101,
@@ -90,14 +90,22 @@ public enum HTTPStatusCode: UInt16 {
 
     // Customs
     unknown = 1000,
-    invalidURL = 1001
+    invalidURL = 1001,
+    invalidURLRequest = 1002,
+    invalidURLResponse = 1003,
+    invalidData = 1004,
+    URLSessionError = 1005,
+    JSONparsingError = 1006,
+    objectParsingError = 1007,
+    imageParsingError = 1008,
+    invalidResponseMimeType = 1009
 
     public var string: String {
         let s = String(describing: self)
         return try! NSRegularExpression(pattern: "([A-Z])").stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: " $0")
     }
 
-    init(_ statusCode: UInt16 = 1000) {
+    init(_ statusCode: Int = 1000) {
         self = HTTPStatusCode(rawValue: statusCode) ?? .unknown
     }
 }
@@ -107,7 +115,16 @@ public enum RequestStatus {
 }
 
 public enum RequestLogLevel: UInt8 {
-    case none = 0, error = 1, warning = 2, debug = 3
+    case none = 0, error = 1, warning = 2, info = 3, debug = 4
+}
+
+fileprivate class RequestLogger {
+    static func log(_ requiredLevel: RequestLogLevel, _ s: String) {
+        guard Request.logLevel.rawValue >= requiredLevel.rawValue else { return }
+
+        let logString = String(describing: requiredLevel).uppercased()
+        print("(FrigKit-Request) \(logString): \(s)")
+    }
 }
 
 public struct RequestError {
@@ -119,43 +136,137 @@ public struct RequestError {
         return "\(self.method) (\(self.url)): \(self.statusCode.rawValue) \(self.statusCode.string)"
     }
 
-    init(request: Request, statusCode: HTTPStatusCode = HTTPStatusCode(), description: String = "") {
+    init(request: URLRequest, statusCode: HTTPStatusCode = HTTPStatusCode(), description: String = "") {
         self.init(url: request.url, method: request.method, statusCode: statusCode)
     }
 
-    init(url: URL? = nil, method: HTTPMethod = .get, statusCode: HTTPStatusCode = HTTPStatusCode()) {
+    init(url: URL? = nil, method: HTTPMethod? = nil, statusCode: HTTPStatusCode = HTTPStatusCode()) {
         self.url = url != nil ? url!.absoluteString : "nil"
-        self.method = method.rawValue
+        self.method = method?.rawValue ?? "UNDEFINED"
         self.statusCode = statusCode
     }
 }
 
-public class Response {
-    let status: HTTPStatusCode
-    let rawData: Data?
+fileprivate protocol ParametersBuilder {
+    func build(request: inout URLRequest)
+}
 
-    init() {
+public class RequestResponse {
+    fileprivate var _error: RequestError?
+    public var error: RequestError? { return self._error }
 
+    private var _rawData: Data?
+    public var rawData: Data? { return self._rawData }
+
+    fileprivate func parse(data: Data?, error: RequestError?) {
+        self._rawData = data
+        self._error = error
     }
 }
 
-public class TextResponse: Response {
+public class TextResponse: RequestResponse {
+    private var _text: String?
+    public var text: String? { return self._text }
 
+    override func parse(data: Data?, error: RequestError?) {
+        if let data = data {
+            self._text = String(data: data, encoding: .utf8)
+        }
+
+        super.parse(data: data, error: error)
+    }
 }
 
-public class JSONResponse: Response {
+public class JSONResponse: RequestResponse {
+    private var _isArray: Bool = false
+    public var isArray: Bool { return self._isArray }
 
+    private var _json: Any?
+    public var json: Any { return self._json as Any }
+
+    override func parse(data: Data?, error: RequestError?) {
+        if let data = data {
+            do {
+                self._json = try JSONSerialization.jsonObject(with: data)
+
+                if self._json as? [[String: Any]] != nil {
+                    self._isArray = true
+                }
+            } catch {
+                self._error = RequestError(statusCode: .JSONparsingError)
+            }
+        }
+
+        super.parse(data: data, error: error)
+    }
 }
 
-public class ObjectResponse<T: Decodable>: Response {
+public class ObjectResponse<T: Decodable>: JSONResponse {
+    private var _object: T?
+    public var object: T? { return self._object }
 
+    override func parse(data: Data?, error: RequestError?) {
+        if let data = data {
+            do {
+                self._object = try JSONDecoder().decode(T.self, from: data)
+            } catch {
+                self._error = RequestError(statusCode: .objectParsingError)
+            }
+        }
+
+        super.parse(data: data, error: error)
+    }
 }
 
-public class ImageResponse: Response {
-    let image: UIImage
+//public class ImageResponse: RequestResponse {
+//    private var _image: UIImage?
+//    public var image: UIImage? { return self._image }
+//
+//    override func parse(data: Data?, error: RequestError?) {
+//        if let data = data {
+//            self._image = UIImage(data: data)
+//
+//            if self._image == nil {
+//                self._error = RequestError(statusCode: .imageParsingError)
+//            }
+//        }
+//
+//        super.parse(data: data, error: error)
+//    }
+//}
 
-    init?() {
+fileprivate struct RequestValidation {
+    let range: Range<Int>?
+    let mimeType: String?
+
+    func validate(response: HTTPURLResponse) -> RequestError? {
+        if let range = self.range {
+            guard range.contains(response.statusCode) else {
+                return RequestError(statusCode: HTTPStatusCode(response.statusCode))
+            }
+        }
+
+        if let mimeType = self.mimeType, let responseMimeType = response.mimeType {
+            guard mimeType == responseMimeType else {
+                return RequestError(statusCode: .invalidResponseMimeType)
+            }
+        }
+
         return nil
+    }
+}
+
+fileprivate extension URLRequest {
+    fileprivate struct store {
+        static var method: HTTPMethod = .get
+    }
+
+    fileprivate var method: HTTPMethod {
+        get { return store.method }
+        set {
+            store.method = newValue
+            self.httpMethod = newValue.rawValue
+        }
     }
 }
 
@@ -170,31 +281,46 @@ public class Request {
     private var _error: RequestError?
     public var error: RequestError? { return self._error }
 
-    fileprivate var url: URL?
-    fileprivate var method: HTTPMethod = .get
-    private var headers = [String: String]()
-    private var parameters = [String: String]()
-    private var body: Data?
+    private var validation: RequestValidation?
+
+    fileprivate var urlRequest: URLRequest?
+    fileprivate var response: RequestResponse?
+    fileprivate var task: URLSessionTask?
 
     convenience init(_ url: String, method: HTTPMethod = .get, parameters: [String: String] = [:], headers: [String: String] = [:]) {
         self.init(URL(string: url), method: method, parameters: parameters, headers: headers)
     }
 
-    convenience init(request: URLRequest) {
-        self.body = request.httpBody
-        self.init(request.url, method: HTTPMethod(request.httpMethod), headers: request.allHTTPHeaderFields ?? [:])
-    }
+    init(request: URLRequest) {
+        RequestLogger.log(.debug, "creating (\(self.requestId)) from URLRequest object")
 
-    init(_ url: URL?, method: HTTPMethod = .get, parameters: [String: String] = [:], headers: [String: String] = [:]) {
-        guard let url = url else {
-            self.set(error: RequestError())
+        let method: HTTPMethod = HTTPMethod(request.httpMethod)
+
+        guard let url = request.url else {
+            self.set(error: RequestError(method: method, statusCode: .invalidURL))
             return
         }
 
-        self.url = url
-        self.method = method
-        self.parameters = parameters
-        self.headers = headers
+        self.urlRequest = request
+        self.urlRequest!.method = method
+
+        RequestLogger.log(.debug, "\(method.rawValue) \(url)")
+    }
+
+    init(_ url: URL?, method: HTTPMethod = .get, parameters: [String: String] = [:], headers: [String: String] = [:]) {
+        RequestLogger.log(.debug, "creating (\(self.requestId)) from arguments")
+
+        guard let url = url else {
+            self.set(error: RequestError(method: method, statusCode: .invalidURL))
+            return
+        }
+
+        self.urlRequest = URLRequest(url: url)
+        self.urlRequest!.allHTTPHeaderFields = headers
+        self.urlRequest!.method = method
+        self.urlRequest!.cachePolicy = .reloadRevalidatingCacheData
+
+        RequestLogger.log(.debug, "\(method.rawValue) \(url)")
     }
 
     public static func == (_ lhs: Request, _ rhs: Request) -> Bool { return lhs.requestId == rhs.requestId }
@@ -203,25 +329,133 @@ public class Request {
     private func set(error: RequestError) {
         self._error = error
         self._status = .errored
+        RequestLogger.log(.error, "\(error.string)")
+    }
+
+    public func validate(range: Range<Int>? = nil, mimeType: String? = nil) -> Request {
+        if self.validation == nil {
+            RequestLogger.log(.debug, "turning on validation module")
+        }
+
+        if range == nil && mimeType == nil {
+            self.validation = RequestValidation(range: 200..<300, mimeType: mimeType)
+        } else {
+            self.validation = RequestValidation(range: range, mimeType: mimeType)
+        }
+
+
+        if let mimeType = mimeType {
+            RequestLogger.log(.debug, "using \(mimeType) as validation mime type")
+        }
+
+        if let range = self.validation!.range {
+            RequestLogger.log(.debug, "using \(range) as validation range")
+        }
+
+        return self
+    }
+
+    public func cache(policy: URLRequest.CachePolicy) -> Request {
+        guard self.urlRequest != nil else { return self }
+
+        RequestLogger.log(.debug, "changing cache policy to \(String(describing: policy))")
+        self.urlRequest!.cachePolicy = policy
+        return self
+    }
+
+    public func timeout(in timeout: TimeInterval) -> Request {
+        guard self.urlRequest != nil else { return self }
+
+        RequestLogger.log(.debug, "changing timeout to \(timeout)")
+        self.urlRequest!.timeoutInterval = timeout
+        return self
     }
 
     public func cancel() {
         guard ![RequestStatus.cancelled,
                 RequestStatus.completed,
                 RequestStatus.errored].contains(self.status) else {
-            return
+                    return
         }
 
         self._status = .cancelled
-        // actually cancel
+        self.task?.cancel()
     }
 
-    private func resume() {
-        guard self.status == .pending else { return }
+    private func resume(callback: @escaping () -> Void) {
+        RequestLogger.log(.debug, "sending (\(self.requestId))")
+
+        guard self.urlRequest != nil else {
+            self.set(error: RequestError(statusCode: .invalidURLRequest))
+            return callback()
+        }
+
+        guard ![RequestStatus.running, RequestStatus.cancelled].contains(self._status) else {
+            RequestLogger.log(.warning, "stoped sending (\(self.requestId)) because it's status was \(self._status)")
+            return callback()
+        }
         self._status = .running
 
-        URLSessionDataTask()
+        RequestLogger.log(.info, "\(self.urlRequest!.method.rawValue) \(self.urlRequest!.url?.absoluteString ?? "nil")")
+
+        self.task = URLSession.shared.dataTask(with: self.urlRequest!) { (data, response, error) in
+            RequestLogger.log(.debug, "response from (\(self.requestId))")
+
+            if error != nil {
+                self.set(error: RequestError(url: self.urlRequest!.url, method: self.urlRequest!.method, statusCode: .URLSessionError))
+                self.response!.parse(data: data, error: self._error)
+                return callback()
+            }
+
+            if let response = response as? HTTPURLResponse {
+                if let error = self.validation?.validate(response: response) {
+                    self.set(error: error)
+                    self.response?.parse(data: data, error: self._error)
+                }
+            }
+
+            guard let data = data else {
+                self.set(error: RequestError(url: self.urlRequest!.url, method: self.urlRequest!.method, statusCode: .invalidData))
+                self.response!.parse(data: nil, error: self._error)
+                return callback()
+            }
+
+            RequestLogger.log(.debug, "parsing (\(self.requestId))")
+
+            self.response!.parse(data: data, error: self._error)
+            DispatchQueue.main.async { return callback() }
+        }
+
+        self.task!.resume()
     }
 
-    func text() {}
+    func raw(callback: @escaping (RequestResponse) -> Void) {
+        RequestLogger.log(.debug, "requested raw data for (\(self.requestId))")
+        self.response = RequestResponse()
+        self.resume { callback(self.response!) }
+    }
+
+    func text(callback: @escaping (TextResponse) -> Void) {
+        RequestLogger.log(.debug, "requested text data for (\(self.requestId))")
+        self.response = TextResponse()
+        self.resume { callback(self.response as! TextResponse) }
+    }
+
+    func json(callback: @escaping (JSONResponse) -> Void) {
+        RequestLogger.log(.debug, "requested json data for (\(self.requestId))")
+        self.response = JSONResponse()
+        self.resume { callback(self.response as! JSONResponse) }
+    }
+
+    func object<T>(callback: @escaping (ObjectResponse<T>) -> Void) {
+        RequestLogger.log(.debug, "requested object data for (\(self.requestId))")
+        self.response = ObjectResponse<T>()
+        self.resume { callback(self.response as! ObjectResponse<T>) }
+    }
+
+    //    func image(callback: @escaping (ImageResponse) -> Void) {
+    //        RequestLogger.log(.debug, "requested image data for (\(self.requestId))")
+    //        self.response = ImageResponse()
+    //        self.resume { callback(self.response as! ImageResponse) }
+    //    }
 }
