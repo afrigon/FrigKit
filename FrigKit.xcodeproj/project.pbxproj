@@ -7,13 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		FE946D722208D73C007E9031 /* f.h in Headers */ = {isa = PBXBuildFile; fileRef = FE946D702208D73C007E9031 /* f.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		FE946D722208D73C007E9031 /* FrigKit.h in Headers */ = {isa = PBXBuildFile; fileRef = FE946D702208D73C007E9031 /* FrigKit.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		FE946D792208D778007E9031 /* Request.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE946D782208D778007E9031 /* Request.swift */; };
+		FE946D7B2208F371007E9031 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE946D7A2208F371007E9031 /* Location.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		FE946D6D2208D73C007E9031 /* f.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = f.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		FE946D702208D73C007E9031 /* f.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = f.h; sourceTree = "<group>"; };
+		FE946D6D2208D73C007E9031 /* FrigKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = FrigKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		FE946D702208D73C007E9031 /* FrigKit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrigKit.h; sourceTree = "<group>"; };
 		FE946D712208D73C007E9031 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FE946D782208D778007E9031 /* Request.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Request.swift; sourceTree = "<group>"; };
+		FE946D7A2208F371007E9031 /* Location.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Location.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -30,7 +34,7 @@
 		FE946D632208D73C007E9031 = {
 			isa = PBXGroup;
 			children = (
-				FE946D6F2208D73C007E9031 /* f */,
+				FE946D6F2208D73C007E9031 /* FrigKit */,
 				FE946D6E2208D73C007E9031 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -38,18 +42,20 @@
 		FE946D6E2208D73C007E9031 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FE946D6D2208D73C007E9031 /* f.framework */,
+				FE946D6D2208D73C007E9031 /* FrigKit.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		FE946D6F2208D73C007E9031 /* f */ = {
+		FE946D6F2208D73C007E9031 /* FrigKit */ = {
 			isa = PBXGroup;
 			children = (
-				FE946D702208D73C007E9031 /* f.h */,
+				FE946D702208D73C007E9031 /* FrigKit.h */,
 				FE946D712208D73C007E9031 /* Info.plist */,
+				FE946D782208D778007E9031 /* Request.swift */,
+				FE946D7A2208F371007E9031 /* Location.swift */,
 			);
-			path = f;
+			path = FrigKit;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -59,16 +65,16 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FE946D722208D73C007E9031 /* f.h in Headers */,
+				FE946D722208D73C007E9031 /* FrigKit.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXHeadersBuildPhase section */
 
 /* Begin PBXNativeTarget section */
-		FE946D6C2208D73C007E9031 /* f */ = {
+		FE946D6C2208D73C007E9031 /* FrigKit */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FE946D752208D73C007E9031 /* Build configuration list for PBXNativeTarget "f" */;
+			buildConfigurationList = FE946D752208D73C007E9031 /* Build configuration list for PBXNativeTarget "FrigKit" */;
 			buildPhases = (
 				FE946D682208D73C007E9031 /* Headers */,
 				FE946D692208D73C007E9031 /* Sources */,
@@ -79,9 +85,9 @@
 			);
 			dependencies = (
 			);
-			name = f;
+			name = FrigKit;
 			productName = f;
-			productReference = FE946D6D2208D73C007E9031 /* f.framework */;
+			productReference = FE946D6D2208D73C007E9031 /* FrigKit.framework */;
 			productType = "com.apple.product-type.framework";
 		};
 /* End PBXNativeTarget section */
@@ -95,10 +101,11 @@
 				TargetAttributes = {
 					FE946D6C2208D73C007E9031 = {
 						CreatedOnToolsVersion = 10.1;
+						LastSwiftMigration = 1010;
 					};
 				};
 			};
-			buildConfigurationList = FE946D672208D73C007E9031 /* Build configuration list for PBXProject "f" */;
+			buildConfigurationList = FE946D672208D73C007E9031 /* Build configuration list for PBXProject "FrigKit" */;
 			compatibilityVersion = "Xcode 9.3";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -110,7 +117,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				FE946D6C2208D73C007E9031 /* f */,
+				FE946D6C2208D73C007E9031 /* FrigKit */,
 			);
 		};
 /* End PBXProject section */
@@ -130,6 +137,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FE946D7B2208F371007E9031 /* Location.swift in Sources */,
+				FE946D792208D778007E9031 /* Request.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,6 +270,7 @@
 		FE946D762208D73C007E9031 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
 				DEFINES_MODULE = YES;
@@ -268,16 +278,17 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				INFOPLIST_FILE = f/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/FrigKit/Info.plist";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.frigstudio.f;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frigstudio.frigkit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 4.2;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -286,6 +297,7 @@
 		FE946D772208D73C007E9031 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "";
 				CODE_SIGN_STYLE = Automatic;
 				DEFINES_MODULE = YES;
@@ -293,14 +305,14 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				INFOPLIST_FILE = f/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/FrigKit/Info.plist";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.frigstudio.f;
+				PRODUCT_BUNDLE_IDENTIFIER = com.frigstudio.frigkit;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 4.2;
@@ -311,7 +323,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		FE946D672208D73C007E9031 /* Build configuration list for PBXProject "f" */ = {
+		FE946D672208D73C007E9031 /* Build configuration list for PBXProject "FrigKit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FE946D732208D73C007E9031 /* Debug */,
@@ -320,7 +332,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FE946D752208D73C007E9031 /* Build configuration list for PBXNativeTarget "f" */ = {
+		FE946D752208D73C007E9031 /* Build configuration list for PBXNativeTarget "FrigKit" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FE946D762208D73C007E9031 /* Debug */,
