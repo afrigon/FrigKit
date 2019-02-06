@@ -127,13 +127,17 @@ fileprivate class RequestLogger {
     }
 }
 
-public struct RequestError {
-    public let url: String
-    public let method: String
+public struct RequestError: CustomStringConvertible {
+    public let url: String?
+    public let method: String?
     public let statusCode: HTTPStatusCode
 
-    var string: String {
-        return "\(self.method) (\(self.url)): \(self.statusCode.rawValue) \(self.statusCode.string)"
+    public var description: String {
+        if let url = self.url, let method = self.method {
+            return "\(method) (\(url)): \(self.statusCode.rawValue) \(self.statusCode.string)"
+        }
+
+        return "\(self.statusCode.rawValue) \(self.statusCode.string)"
     }
 
     init(request: URLRequest, statusCode: HTTPStatusCode = HTTPStatusCode(), description: String = "") {
@@ -141,8 +145,8 @@ public struct RequestError {
     }
 
     init(url: URL? = nil, method: HTTPMethod? = nil, statusCode: HTTPStatusCode = HTTPStatusCode()) {
-        self.url = url != nil ? url!.absoluteString : "nil"
-        self.method = method?.rawValue ?? "UNDEFINED"
+        self.url = url != nil ? url!.absoluteString : nil
+        self.method = method?.rawValue ?? nil
         self.statusCode = statusCode
     }
 }
@@ -152,6 +156,9 @@ fileprivate protocol ParametersBuilder {
 }
 
 public class RequestResponse {
+    fileprivate var _statusCode: Int?
+    public var statusCode: Int? { return self._statusCode }
+
     fileprivate var _error: RequestError?
     public var error: RequestError? { return self._error }
 
@@ -218,23 +225,6 @@ public class ObjectResponse<T: Decodable>: JSONResponse {
     }
 }
 
-//public class ImageResponse: RequestResponse {
-//    private var _image: UIImage?
-//    public var image: UIImage? { return self._image }
-//
-//    override func parse(data: Data?, error: RequestError?) {
-//        if let data = data {
-//            self._image = UIImage(data: data)
-//
-//            if self._image == nil {
-//                self._error = RequestError(statusCode: .imageParsingError)
-//            }
-//        }
-//
-//        super.parse(data: data, error: error)
-//    }
-//}
-
 fileprivate struct RequestValidation {
     let range: Range<Int>?
     let mimeType: String?
@@ -272,6 +262,7 @@ fileprivate extension URLRequest {
 
 public class Request {
     public static var logLevel: RequestLogLevel = .warning
+    public static var autoValidate: Bool = true
 
     private let requestId: String = NSUUID().uuidString
 
@@ -304,6 +295,8 @@ public class Request {
         self.urlRequest = request
         self.urlRequest!.method = method
 
+        if Request.autoValidate { self.validate() }
+
         RequestLogger.log(.debug, "\(method.rawValue) \(url)")
     }
 
@@ -320,6 +313,8 @@ public class Request {
         self.urlRequest!.method = method
         self.urlRequest!.cachePolicy = .reloadRevalidatingCacheData
 
+        if Request.autoValidate { self.validate() }
+
         RequestLogger.log(.debug, "\(method.rawValue) \(url)")
     }
 
@@ -329,9 +324,10 @@ public class Request {
     private func set(error: RequestError) {
         self._error = error
         self._status = .errored
-        RequestLogger.log(.error, "\(error.string)")
+        RequestLogger.log(.error, "\(error.description)")
     }
 
+    @discardableResult
     public func validate(range: Range<Int>? = nil, mimeType: String? = nil) -> Request {
         if self.validation == nil {
             RequestLogger.log(.debug, "turning on validation module")
@@ -355,6 +351,7 @@ public class Request {
         return self
     }
 
+    @discardableResult
     public func cache(policy: URLRequest.CachePolicy) -> Request {
         guard self.urlRequest != nil else { return self }
 
@@ -363,6 +360,7 @@ public class Request {
         return self
     }
 
+    @discardableResult
     public func timeout(in timeout: TimeInterval) -> Request {
         guard self.urlRequest != nil else { return self }
 
@@ -372,6 +370,8 @@ public class Request {
     }
 
     public func cancel() {
+        RequestLogger.log(.info, "cancelling (\(self.requestId))")
+
         guard ![RequestStatus.cancelled,
                 RequestStatus.completed,
                 RequestStatus.errored].contains(self.status) else {
@@ -380,6 +380,8 @@ public class Request {
 
         self._status = .cancelled
         self.task?.cancel()
+
+        RequestLogger.log(.info, "cancelled query to \(self.urlRequest!.method.rawValue) \(self.urlRequest!.url?.absoluteString ?? "nil")")
     }
 
     private func resume(callback: @escaping () -> Void) {
@@ -408,6 +410,8 @@ public class Request {
             }
 
             if let response = response as? HTTPURLResponse {
+                self.response!._statusCode = response.statusCode
+
                 if let error = self.validation?.validate(response: response) {
                     self.set(error: error)
                     self.response?.parse(data: data, error: self._error)
@@ -452,10 +456,4 @@ public class Request {
         self.response = ObjectResponse<T>()
         self.resume { callback(self.response as! ObjectResponse<T>) }
     }
-
-    //    func image(callback: @escaping (ImageResponse) -> Void) {
-    //        RequestLogger.log(.debug, "requested image data for (\(self.requestId))")
-    //        self.response = ImageResponse()
-    //        self.resume { callback(self.response as! ImageResponse) }
-    //    }
 }
