@@ -80,6 +80,7 @@ public enum HTTPStatusCode: Int {
     unsupportedMediaType = 415,
     requestedRangeNotSatisfiable = 416,
     expectationFailed = 417,
+    isTeapot = 418,
 
     internalServerError = 500,
     notImplemented = 501,
