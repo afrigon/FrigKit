@@ -31,10 +31,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		FE917113220A86190012C638 /* SupportFiles */ = {
+			isa = PBXGroup;
+			children = (
+				FE946D712208D73C007E9031 /* Info.plist */,
+			);
+			path = SupportFiles;
+			sourceTree = "<group>";
+		};
 		FE946D632208D73C007E9031 = {
 			isa = PBXGroup;
 			children = (
-				FE946D6F2208D73C007E9031 /* FrigKit */,
+				FE917113220A86190012C638 /* SupportFiles */,
+				FE946D6F2208D73C007E9031 /* Sources */,
 				FE946D6E2208D73C007E9031 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -47,15 +56,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		FE946D6F2208D73C007E9031 /* FrigKit */ = {
+		FE946D6F2208D73C007E9031 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 				FE946D702208D73C007E9031 /* FrigKit.h */,
-				FE946D712208D73C007E9031 /* Info.plist */,
 				FE946D782208D778007E9031 /* Request.swift */,
 				FE946D7A2208F371007E9031 /* Location.swift */,
 			);
-			path = FrigKit;
+			path = Sources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -278,7 +286,7 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				INFOPLIST_FILE = "$(SRCROOT)/FrigKit/Info.plist";
+				INFOPLIST_FILE = "$(SRCROOT)/SupportFiles/Info.plist";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -305,7 +313,7 @@
 				DYLIB_COMPATIBILITY_VERSION = 1;
 				DYLIB_CURRENT_VERSION = 1;
 				DYLIB_INSTALL_NAME_BASE = "@rpath";
-				INFOPLIST_FILE = "$(SRCROOT)/FrigKit/Info.plist";
+				INFOPLIST_FILE = "$(SRCROOT)/SupportFiles/Info.plist";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
