@@ -24,6 +24,20 @@
 
 import Foundation
 
+fileprivate extension URLRequest {
+    fileprivate struct store {
+        static var method: HTTPMethod = .get
+    }
+
+    fileprivate var method: HTTPMethod {
+        get { return store.method }
+        set {
+            store.method = newValue
+            self.httpMethod = newValue.rawValue
+        }
+    }
+}
+
 public enum HTTPMethod: String {
     case options = "OPTIONS"
     case get     = "GET"
@@ -112,6 +126,10 @@ public enum HTTPStatusCode: Int {
 
 public enum RequestStatus {
     case pending, running, completed, errored, cancelled
+
+    public func `in`(_ statuses: [RequestStatus]) -> Bool {
+        return statuses.contains(self)
+    }
 }
 
 public enum RequestLogLevel: UInt8 {
@@ -124,6 +142,27 @@ fileprivate class RequestLogger {
 
         let logString = String(describing: requiredLevel).uppercased()
         print("(FrigKit-Request) \(logString): \(s)")
+    }
+}
+
+fileprivate struct RequestValidation {
+    let range: Range<Int>?
+    let mimeType: String?
+
+    func validate(response: HTTPURLResponse) -> RequestError? {
+        if let range = self.range {
+            guard range.contains(response.statusCode) else {
+                return RequestError(statusCode: HTTPStatusCode(response.statusCode))
+            }
+        }
+
+        if let mimeType = self.mimeType, let responseMimeType = response.mimeType {
+            guard mimeType == responseMimeType else {
+                return RequestError(statusCode: .invalidResponseMimeType)
+            }
+        }
+
+        return nil
     }
 }
 
@@ -140,10 +179,6 @@ public struct RequestError: CustomStringConvertible {
         return "\(self.statusCode.rawValue) \(self.statusCode.string)"
     }
 
-    init(request: URLRequest, statusCode: HTTPStatusCode = HTTPStatusCode(), description: String = "") {
-        self.init(url: request.url, method: request.method, statusCode: statusCode)
-    }
-
     init(url: URL? = nil, method: HTTPMethod? = nil, statusCode: HTTPStatusCode = HTTPStatusCode()) {
         self.url = url != nil ? url!.absoluteString : nil
         self.method = method?.rawValue ?? nil
@@ -155,7 +190,11 @@ fileprivate protocol ParametersBuilder {
     func build(request: inout URLRequest)
 }
 
-public class RequestResponse {
+fileprivate protocol RequestResponse {
+    func parse(data: Data?, error: RequestError?)
+}
+
+public class RawResponse: RequestResponse {
     fileprivate var _statusCode: Int?
     public var statusCode: Int? { return self._statusCode }
 
@@ -171,7 +210,7 @@ public class RequestResponse {
     }
 }
 
-public class TextResponse: RequestResponse {
+public class TextResponse: RawResponse {
     private var _text: String?
     public var text: String? { return self._text }
 
@@ -184,7 +223,7 @@ public class TextResponse: RequestResponse {
     }
 }
 
-public class JSONResponse: RequestResponse {
+public class JSONResponse: RawResponse {
     private var _isArray: Bool = false
     public var isArray: Bool { return self._isArray }
 
@@ -225,41 +264,6 @@ public class ObjectResponse<T: Decodable>: JSONResponse {
     }
 }
 
-fileprivate struct RequestValidation {
-    let range: Range<Int>?
-    let mimeType: String?
-
-    func validate(response: HTTPURLResponse) -> RequestError? {
-        if let range = self.range {
-            guard range.contains(response.statusCode) else {
-                return RequestError(statusCode: HTTPStatusCode(response.statusCode))
-            }
-        }
-
-        if let mimeType = self.mimeType, let responseMimeType = response.mimeType {
-            guard mimeType == responseMimeType else {
-                return RequestError(statusCode: .invalidResponseMimeType)
-            }
-        }
-
-        return nil
-    }
-}
-
-fileprivate extension URLRequest {
-    fileprivate struct store {
-        static var method: HTTPMethod = .get
-    }
-
-    fileprivate var method: HTTPMethod {
-        get { return store.method }
-        set {
-            store.method = newValue
-            self.httpMethod = newValue.rawValue
-        }
-    }
-}
-
 public class Request {
     public static var logLevel: RequestLogLevel = .warning
     public static var autoValidate: Bool = true
@@ -275,8 +279,18 @@ public class Request {
     private var validation: RequestValidation?
 
     fileprivate var urlRequest: URLRequest?
-    fileprivate var response: RequestResponse?
+    fileprivate var response: RawResponse?
     fileprivate var task: URLSessionTask?
+
+    public var cachePolicy: URLRequest.CachePolicy {
+        get { return self.urlRequest?.cachePolicy ?? .reloadRevalidatingCacheData }
+        set { self.urlRequest?.cachePolicy = newValue }
+    }
+
+    public var timeoutInterval: TimeInterval {
+        get { return self.urlRequest?.timeoutInterval ?? 0 }
+        set { self.urlRequest?.timeoutInterval = newValue }
+    }
 
     convenience init(_ url: String, method: HTTPMethod = .get, parameters: [String: String] = [:], headers: [String: String] = [:]) {
         self.init(URL(string: url), method: method, parameters: parameters, headers: headers)
@@ -286,7 +300,6 @@ public class Request {
         RequestLogger.log(.debug, "creating (\(self.requestId)) from URLRequest object")
 
         let method: HTTPMethod = HTTPMethod(request.httpMethod)
-
         guard let url = request.url else {
             self.set(error: RequestError(method: method, statusCode: .invalidURL))
             return
@@ -351,32 +364,9 @@ public class Request {
         return self
     }
 
-    @discardableResult
-    public func cache(policy: URLRequest.CachePolicy) -> Request {
-        guard self.urlRequest != nil else { return self }
-
-        RequestLogger.log(.debug, "changing cache policy to \(String(describing: policy))")
-        self.urlRequest!.cachePolicy = policy
-        return self
-    }
-
-    @discardableResult
-    public func timeout(in timeout: TimeInterval) -> Request {
-        guard self.urlRequest != nil else { return self }
-
-        RequestLogger.log(.debug, "changing timeout to \(timeout)")
-        self.urlRequest!.timeoutInterval = timeout
-        return self
-    }
-
     public func cancel() {
         RequestLogger.log(.info, "cancelling (\(self.requestId))")
-
-        guard ![RequestStatus.cancelled,
-                RequestStatus.completed,
-                RequestStatus.errored].contains(self.status) else {
-                    return
-        }
+        guard !self.status.in([.cancelled, .completed, .errored]) else { return }
 
         self._status = .cancelled
         self.task?.cancel()
@@ -392,8 +382,8 @@ public class Request {
             return callback()
         }
 
-        guard ![RequestStatus.running, RequestStatus.cancelled].contains(self._status) else {
-            RequestLogger.log(.warning, "stoped sending (\(self.requestId)) because it's status was \(self._status)")
+        guard !self.status.in([.running, .cancelled]) else {
+            RequestLogger.log(.warning, "stoped sending (\(self.requestId)) because its status was \(self._status)")
             return callback()
         }
         self._status = .running
@@ -427,32 +417,29 @@ public class Request {
             RequestLogger.log(.debug, "parsing (\(self.requestId))")
 
             self.response!.parse(data: data, error: self._error)
+            self._status = .completed
             DispatchQueue.main.async { return callback() }
         }
 
         self.task!.resume()
     }
 
-    func raw(callback: @escaping (RequestResponse) -> Void) {
-        RequestLogger.log(.debug, "requested raw data for (\(self.requestId))")
-        self.response = RequestResponse()
+    func raw(callback: @escaping (RawResponse) -> Void) {
+        self.response = RawResponse()
         self.resume { callback(self.response!) }
     }
 
     func text(callback: @escaping (TextResponse) -> Void) {
-        RequestLogger.log(.debug, "requested text data for (\(self.requestId))")
         self.response = TextResponse()
         self.resume { callback(self.response as! TextResponse) }
     }
 
     func json(callback: @escaping (JSONResponse) -> Void) {
-        RequestLogger.log(.debug, "requested json data for (\(self.requestId))")
         self.response = JSONResponse()
         self.resume { callback(self.response as! JSONResponse) }
     }
 
     func object<T>(callback: @escaping (ObjectResponse<T>) -> Void) {
-        RequestLogger.log(.debug, "requested object data for (\(self.requestId))")
         self.response = ObjectResponse<T>()
         self.resume { callback(self.response as! ObjectResponse<T>) }
     }
