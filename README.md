@@ -16,7 +16,7 @@ The most basic request is done using the `text` method on a `Request` instance. 
 ```swift
 Request("https://example.com").text { response in
 	guard response.error == nil else {
-        return // handle error
+		return // handle error
     }
 
 	print(response.text)
@@ -28,21 +28,21 @@ Most times you'll be using APIs and JSON response to represent your objects. The
 ```swift
 struct Cat: Decodable {
 	let name: String
-    let age: Int
+	let age: Int
 }
 
 Request("https://example.com/cats.json").object { (response: ObjectResponse<[Cat]>) in
 	guard response.error == nil else {
-        return // handle error
+    	return // handle error
 	}
 
 	guard let cats = response.object else {
-    	return // no cats :(                                                 
+		return // no cats :(                                                 
 	}
                                                  
 	for cat in cats {
-     	print("\(cat.name) is \(cat.age) years old")   
-    }
+		print("\(cat.name) is \(cat.age) years old")   
+	}
 }
 ```
 
