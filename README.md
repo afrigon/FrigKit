@@ -2,8 +2,7 @@
 A Swift army knife
 
 ## Table of Content
-
-- [Request]: https://github.com/afrigon/FrigKit#request	"Request Link" test
+- [Request](#request)
 
 ## Request
 
