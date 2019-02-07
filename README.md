@@ -1,7 +1,6 @@
 # FrigKit
 A Swift army knife
 
-## Table of Content
 - [Request](#request)
 
 ## Request
