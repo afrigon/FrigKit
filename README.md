@@ -21,7 +21,7 @@ Request("https://example.com").text { response in
 }
 ```
 
-Most times you'll be using APIs and JSON response to represent your objects. The `object` method is a generic type that will automatically decode your json data to Swift objects.
+Most times you'll be using APIs and JSON response to represent your objects. The `object` method is a generic function that will automatically decode your json data to Swift objects.
 
 ```swift
 struct Cat: Decodable {
