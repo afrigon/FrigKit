@@ -541,6 +541,17 @@ public class Request {
         return self
     }
 
+    public func params<T: Encodable>(object: T) -> Request {
+        do {
+            self.urlRequest?.httpBody = try JSONEncoder().encode(object)
+            self.urlRequest?.addHeader(RequestHeader.contentType("application/json"))
+        } catch {
+            self.set(error: RequestError(statusCode: .jsonParsingError))
+        }
+
+        return self
+    }
+
     public func cancel() {
         RequestLogger.log(.info, "cancelling (\(self.requestId))")
         guard !self.status.in([.cancelled, .completed, .errored]) else { return }
