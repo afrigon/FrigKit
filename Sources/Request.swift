@@ -602,9 +602,9 @@ public class Request {
         self.task!.resume()
     }
 
-    func send() {
-        self.response = RawResponse()
-        self.resume { }
+    func send(callback: ((RawResponse) -> Void)? = nil) {
+        guard let callback = callback else { return }
+        self.raw(callback: callback)
     }
 
     func raw(callback: @escaping (RawResponse) -> Void) {
