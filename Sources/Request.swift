@@ -614,8 +614,12 @@ public class Request {
     }
 
     func send(callback: ((RawResponse) -> Void)? = nil) {
-        guard let callback = callback else { return }
-        self.raw(callback: callback)
+        if let callback = callback {
+            self.raw(callback: callback)
+        } else {
+            self.response = RawResponse()
+            self.resume {}
+        }
     }
 
     func raw(callback: @escaping (RawResponse) -> Void) {
