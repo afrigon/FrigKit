@@ -30,6 +30,10 @@ fileprivate extension URLRequest {
         set { self.allHTTPHeaderFields = newValue.headers }
     }
 
+    fileprivate mutating func addHeader(_ header: RequestHeader) {
+        self.addValue(header.value, forHTTPHeaderField: header.name)
+    }
+
     fileprivate var method: HTTPMethod {
         get { return HTTPMethod(rawValue: self.httpMethod ?? "GET") ?? .get }
         set { self.httpMethod = newValue.rawValue }
@@ -55,6 +59,10 @@ public enum HTTPMethod: String {
 
     init(_ method: String?) {
         self = HTTPMethod(rawValue: (method ?? "GET").uppercased()) ?? .get
+    }
+
+    public func `in`(_ methods: [HTTPMethod]) -> Bool {
+        return methods.contains(self)
     }
 }
 
@@ -311,17 +319,13 @@ public class RequestHeader: CustomStringConvertible {
         return RequestHeader(name: "Content-Disposition", value: value)
     }
 
-    public static func contentType(__ value: String) -> RequestHeader {
+    public static func contentType(_ value: String) -> RequestHeader {
         return RequestHeader(name: "Content-Type", value: value)
     }
 
     public static func userAgent(_ value: String) -> RequestHeader {
         return RequestHeader(name: "User-Agent", value: value)
     }
-}
-
-fileprivate protocol ParametersBuilder {
-    func build(request: inout URLRequest)
 }
 
 fileprivate protocol RequestResponse {
@@ -420,11 +424,6 @@ public class Request {
     fileprivate var response: RawResponse?
     fileprivate var task: URLSessionTask?
 
-    public var headers: RequestHeaders {
-        get { return self.urlRequest?.headers ?? RequestHeaders() }
-        set { self.urlRequest?.headers = newValue }
-    }
-
     public var cachePolicy: URLRequest.CachePolicy {
         get { return self.urlRequest?.cachePolicy ?? .reloadRevalidatingCacheData }
         set { self.urlRequest?.cachePolicy = newValue }
@@ -465,7 +464,7 @@ public class Request {
         }
 
         self.urlRequest = URLRequest(url: url)
-        self.urlRequest!.headers = headers
+        self.urlRequest?.headers = headers
         self.urlRequest!.method = method
         self.urlRequest!.cachePolicy = .reloadRevalidatingCacheData
 
@@ -502,6 +501,41 @@ public class Request {
 
         if let range = self.validation!.range {
             RequestLogger.log(.debug, "using \(range) as validation range")
+        }
+
+        return self
+    }
+
+    public func params(_ params: [String: Any]) -> Request {
+        if self.urlRequest!.method.in([.get, .options, .trace]) {
+            self.encodeQueryUrl(params: params)
+            return self
+        }
+
+        self.encodeBodyUrl(params: params)
+        return self
+    }
+
+    private func encodeQueryUrl(params: [String: Any]) {
+        guard let url = self.urlRequest?.url else { return }
+
+        let query = params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
+        self.urlRequest?.url = URL(string: "\(url)\(url.query == nil ? "?" : "&")\(query)")
+    }
+
+    private func encodeBodyUrl(params: [String: Any]) {
+        let body = params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
+        self.urlRequest?.httpBody = body.data(using: .utf8)
+
+        self.urlRequest?.addHeader(RequestHeader.contentType("application/x-www-form-urlencoded"))
+    }
+
+    public func params(json: Any) -> Request {
+        do {
+            self.urlRequest?.httpBody = try JSONSerialization.data(withJSONObject: json)
+            self.urlRequest?.addHeader(RequestHeader.contentType("application/json"))
+        } catch {
+            self.set(error: RequestError(statusCode: .jsonParsingError))
         }
 
         return self
@@ -566,6 +600,11 @@ public class Request {
         }
 
         self.task!.resume()
+    }
+
+    func send() {
+        self.response = RawResponse()
+        self.resume { }
     }
 
     func raw(callback: @escaping (RawResponse) -> Void) {
