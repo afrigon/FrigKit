@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		FE634B1C221690CD002A6371 /* UIColor+FrigKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE634B1B221690CD002A6371 /* UIColor+FrigKit.swift */; };
+		FE787A8622267A96009AA3A8 /* UIView+FrigKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE787A8522267A96009AA3A8 /* UIView+FrigKit.swift */; };
+		FE787A8822267AA3009AA3A8 /* JSONWebToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE787A8722267AA3009AA3A8 /* JSONWebToken.swift */; };
+		FE787A8A22267AB4009AA3A8 /* String+FrigKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE787A8922267AB4009AA3A8 /* String+FrigKit.swift */; };
 		FE946D722208D73C007E9031 /* FrigKit.h in Headers */ = {isa = PBXBuildFile; fileRef = FE946D702208D73C007E9031 /* FrigKit.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		FE946D792208D778007E9031 /* Request.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE946D782208D778007E9031 /* Request.swift */; };
 		FE946D7B2208F371007E9031 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE946D7A2208F371007E9031 /* Location.swift */; };
@@ -15,6 +18,9 @@
 
 /* Begin PBXFileReference section */
 		FE634B1B221690CD002A6371 /* UIColor+FrigKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIColor+FrigKit.swift"; sourceTree = "<group>"; };
+		FE787A8522267A96009AA3A8 /* UIView+FrigKit.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "UIView+FrigKit.swift"; sourceTree = "<group>"; };
+		FE787A8722267AA3009AA3A8 /* JSONWebToken.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = JSONWebToken.swift; sourceTree = "<group>"; };
+		FE787A8922267AB4009AA3A8 /* String+FrigKit.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "String+FrigKit.swift"; sourceTree = "<group>"; };
 		FE946D6D2208D73C007E9031 /* FrigKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = FrigKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE946D702208D73C007E9031 /* FrigKit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FrigKit.h; sourceTree = "<group>"; };
 		FE946D712208D73C007E9031 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -64,6 +70,9 @@
 				FE946D702208D73C007E9031 /* FrigKit.h */,
 				FE946D782208D778007E9031 /* Request.swift */,
 				FE946D7A2208F371007E9031 /* Location.swift */,
+				FE787A8722267AA3009AA3A8 /* JSONWebToken.swift */,
+				FE787A8922267AB4009AA3A8 /* String+FrigKit.swift */,
+				FE787A8522267A96009AA3A8 /* UIView+FrigKit.swift */,
 				FE634B1B221690CD002A6371 /* UIColor+FrigKit.swift */,
 			);
 			path = Sources;
@@ -149,8 +158,11 @@
 			buildActionMask = 2147483647;
 			files = (
 				FE634B1C221690CD002A6371 /* UIColor+FrigKit.swift in Sources */,
+				FE787A8822267AA3009AA3A8 /* JSONWebToken.swift in Sources */,
 				FE946D7B2208F371007E9031 /* Location.swift in Sources */,
+				FE787A8A22267AB4009AA3A8 /* String+FrigKit.swift in Sources */,
 				FE946D792208D778007E9031 /* Request.swift in Sources */,
+				FE787A8622267A96009AA3A8 /* UIView+FrigKit.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

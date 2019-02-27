@@ -107,6 +107,7 @@ public enum HTTPStatusCode: Int {
     requestedRangeNotSatisfiable = 416,
     expectationFailed = 417,
     isTeapot = 418,
+    tooManyRequest = 429,
 
     internalServerError = 500,
     notImplemented = 501,
@@ -506,6 +507,10 @@ public class Request {
         return self
     }
 
+    public func addHeader(_ header: RequestHeader) {
+        self.urlRequest?.addHeader(header)
+    }
+
     public func params(_ params: [String: Any]) -> Request {
         if self.urlRequest!.method.in([.get, .options, .trace]) {
             self.encodeQueryUrl(params: params)
@@ -584,7 +589,7 @@ public class Request {
             if error != nil {
                 self.set(error: RequestError(url: self.urlRequest!.url, method: self.urlRequest!.method, statusCode: .urlSessionError))
                 self.response!.parse(data: data, error: self._error)
-                return callback()
+                return DispatchQueue.main.async { return callback() }
             }
 
             if let response = response as? HTTPURLResponse {
@@ -600,7 +605,7 @@ public class Request {
             guard let data = data else {
                 self.set(error: RequestError(url: self.urlRequest!.url, method: self.urlRequest!.method, statusCode: .invalidData))
                 self.response!.parse(data: nil, error: self._error)
-                return callback()
+                return DispatchQueue.main.async { return callback() }
             }
 
             RequestLogger.log(.debug, "parsing (\(self.requestId))")

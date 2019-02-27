@@ -83,15 +83,21 @@ extension UIColor {
         self.init(red: c.red, green: c.green, blue: c.blue, alpha: c.alpha)
     }
 
-    public func lighter(by value: CGFloat = 0.15) -> UIColor {
+    public func lighter(by delta: CGFloat = 0.15) -> UIColor {
         var c = self.hsba
-        c.brightness = min(c.brightness + value, 1)
+        c.brightness = min(c.brightness + delta, 1)
         return UIColor(components: c)
     }
 
-    public func darker(by value: CGFloat = 0.15) -> UIColor {
+    public func darker(by delta: CGFloat = 0.15) -> UIColor {
         var c = self.hsba
-        c.brightness = max(c.brightness - value, 0)
+        c.brightness = max(c.brightness - delta, 0)
+        return UIColor(components: c)
+    }
+
+    public func alterOpacity(by delta: CGFloat) -> UIColor {
+        var c = self.hsba
+        c.alpha = min(max(0, c.alpha + delta), 1)
         return UIColor(components: c)
     }
 
