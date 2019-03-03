@@ -324,6 +324,10 @@ public class RequestHeader: CustomStringConvertible {
         return RequestHeader(name: "Content-Type", value: value)
     }
 
+    public static func contentLength(_ value: Int) -> RequestHeader {
+        return RequestHeader(name: "Content-Length", value: String(value))
+    }
+
     public static func userAgent(_ value: String) -> RequestHeader {
         return RequestHeader(name: "User-Agent", value: value)
     }
@@ -507,53 +511,9 @@ public class Request {
         return self
     }
 
-    public func addHeader(_ header: RequestHeader) {
+    @discardableResult
+    public func addHeader(_ header: RequestHeader) -> Request {
         self.urlRequest?.addHeader(header)
-    }
-
-    public func params(_ params: [String: Any]) -> Request {
-        if self.urlRequest!.method.in([.get, .options, .trace]) {
-            self.encodeQueryUrl(params: params)
-            return self
-        }
-
-        self.encodeBodyUrl(params: params)
-        return self
-    }
-
-    private func encodeQueryUrl(params: [String: Any]) {
-        guard let url = self.urlRequest?.url else { return }
-
-        let query = params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
-        self.urlRequest?.url = URL(string: "\(url)\(url.query == nil ? "?" : "&")\(query)")
-    }
-
-    private func encodeBodyUrl(params: [String: Any]) {
-        let body = params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
-        self.urlRequest?.httpBody = body.data(using: .utf8)
-
-        self.urlRequest?.addHeader(RequestHeader.contentType("application/x-www-form-urlencoded"))
-    }
-
-    public func params(json: Any) -> Request {
-        do {
-            self.urlRequest?.httpBody = try JSONSerialization.data(withJSONObject: json)
-            self.urlRequest?.addHeader(RequestHeader.contentType("application/json"))
-        } catch {
-            self.set(error: RequestError(statusCode: .jsonParsingError))
-        }
-
-        return self
-    }
-
-    public func params<T: Encodable>(object: T) -> Request {
-        do {
-            self.urlRequest?.httpBody = try JSONEncoder().encode(object)
-            self.urlRequest?.addHeader(RequestHeader.contentType("application/json"))
-        } catch {
-            self.set(error: RequestError(statusCode: .jsonParsingError))
-        }
-
         return self
     }
 
@@ -645,5 +605,128 @@ public class Request {
     func object<T>(callback: @escaping (ObjectResponse<T>) -> Void) {
         self.response = ObjectResponse<T>()
         self.resume { callback(self.response as! ObjectResponse<T>) }
+    }
+}
+
+extension Request {
+    public func params(_ params: [String: Any]) -> Request {
+        if self.urlRequest!.method.in([.get, .options, .trace]) {
+            self.encodeQueryUrl(params: params)
+            return self
+        }
+
+        self.encodeBodyUrl(params: params)
+        return self
+    }
+
+    private func encodeQueryUrl(params: [String: Any]) {
+        guard let url = self.urlRequest?.url else { return }
+
+        let query = params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
+        self.urlRequest?.url = URL(string: "\(url)\(url.query == nil ? "?" : "&")\(query)")
+    }
+
+    private func encodeBodyUrl(params: [String: Any]) {
+        let body = params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
+        self.urlRequest?.httpBody = body.data(using: .utf8)
+
+        self.urlRequest?.addHeader(RequestHeader.contentType("application/x-www-form-urlencoded"))
+    }
+
+    public func params(json: Any) -> Request {
+        do {
+            self.urlRequest?.httpBody = try JSONSerialization.data(withJSONObject: json)
+            self.urlRequest?.addHeader(RequestHeader.contentType("application/json"))
+        } catch {
+            self.set(error: RequestError(statusCode: .jsonParsingError))
+        }
+
+        return self
+    }
+
+    public func params<T: Encodable>(object: T) -> Request {
+        do {
+            self.urlRequest?.httpBody = try JSONEncoder().encode(object)
+            self.urlRequest?.addHeader(RequestHeader.contentType("application/json"))
+        } catch {
+            self.set(error: RequestError(statusCode: .jsonParsingError))
+        }
+
+        return self
+    }
+
+    public func params(multipart params: [String: Any]) -> Request {
+        let boundary = "Frigkit+\(arc4random())\(arc4random())"
+        let formData = MultipartData(boundary: boundary)
+
+        params.forEach { formData.append(name: $0.0, value: "\($0.1)".data(using: .utf8)!) }
+        self.urlRequest?.httpBody = formData.toData()
+
+        self.addHeader(RequestHeader.contentType("multipart/form-data; boundary=\(boundary)"))
+        self.addHeader(RequestHeader.contentLength(self.urlRequest?.httpBody?.count ?? 0))
+
+        return self
+    }
+
+    public func params(multipart formData: MultipartData) -> Request {
+        let boundary = "Frigkit+\(arc4random())\(arc4random())"
+        self.urlRequest?.httpBody = formData.toData()
+
+        self.addHeader(RequestHeader.contentType("multipart/form-data; boundary=\(boundary)"))
+        self.addHeader(RequestHeader.contentLength(self.urlRequest?.httpBody?.count ?? 0))
+
+        return self
+    }
+
+    public func upload(name: String, data: Data, filename: String? = nil, contentType: String = "application/octet-stream") -> Request {
+        let boundary = "Frigkit+\(arc4random())\(arc4random())"
+        let formData = MultipartData(boundary: boundary)
+        formData.append(name: name, value: data, filename: filename, filetype: contentType)
+        self.urlRequest?.httpBody = formData.toData()
+
+        self.addHeader(RequestHeader.contentType("multipart/form-data; boundary=\(boundary)"))
+        self.addHeader(RequestHeader.contentLength(self.urlRequest?.httpBody?.count ?? 0))
+
+        return self
+    }
+}
+
+public class MultipartData {
+    private let crlf = "\r\n"
+    private let boundary: String
+    private var isFinal: Bool = false
+
+    private let data = NSMutableData()
+
+    init(boundary: String) {
+        self.boundary = boundary
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    public func append(name: String, value: Data, filename: String? = nil, filetype: String? = nil) {
+        guard !self.isFinal else { return }
+
+        var string = "--\(boundary)\(crlf)"
+        string += "Content-Disposition: form-data; name=\"\(name)\""
+        if let filename = filename { string += "; filename=\"\(filename)\"" }
+        string += crlf
+        if let filetype = filetype { string += "Content-Type: \(filetype)\(crlf)" }
+        string += crlf
+
+        self.data.append(string.data(using: .utf8)!)
+        self.data.append(value)
+        self.data.append(crlf.data(using: .utf8)!)
+    }
+
+    public func toData() -> Data {
+        if !self.isFinal {
+            self.data.append("--\(boundary)--\(crlf)".data(using: .utf8)!)
+            self.isFinal = true
+        }
+
+        return self.data as Data
     }
 }
