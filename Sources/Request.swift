@@ -24,409 +24,23 @@
 
 import Foundation
 
-fileprivate extension URLRequest {
-    fileprivate var headers: RequestHeaders {
-        get { return RequestHeaders(self.allHTTPHeaderFields ?? [:]) }
-        set { self.allHTTPHeaderFields = newValue.headers }
-    }
-
-    fileprivate mutating func addHeader(_ header: RequestHeader) {
-        self.addValue(header.value, forHTTPHeaderField: header.name)
-    }
-
-    fileprivate var method: HTTPMethod {
-        get { return HTTPMethod(rawValue: self.httpMethod ?? "GET") ?? .get }
-        set { self.httpMethod = newValue.rawValue }
-    }
-}
-
-fileprivate extension Collection where Element == String {
-    var qualityEncoded: String {
-        return self.enumerated().map { "\($1);q=\(1.0 - (Double($0) * 0.1))" }.joined(separator: ", ")
-    }
-}
-
-public enum HTTPMethod: String {
-    case options = "OPTIONS"
-    case get     = "GET"
-    case head    = "HEAD"
-    case post    = "POST"
-    case put     = "PUT"
-    case patch   = "PATCH"
-    case delete  = "DELETE"
-    case trace   = "TRACE"
-    case connect = "CONNECT"
-
-    init(_ method: String?) {
-        self = HTTPMethod(rawValue: (method ?? "GET").uppercased()) ?? .get
-    }
-
-    public func `in`(_ methods: [HTTPMethod]) -> Bool {
-        return methods.contains(self)
-    }
-}
-
-public enum HTTPStatusCode: Int {
-    case
-    `continue` = 100,
-    switchingProtocols = 101,
-
-    ok = 200,
-    created = 201,
-    accepted = 202,
-    nonAuthoritativeInformation = 203,
-    noContent = 204,
-    resetContent = 205,
-    partialContent = 206,
-
-    multipleChoices = 300,
-    movedPermanently = 301,
-    found = 302,
-    seeOther = 303,
-    notModified = 304,
-    useProxy = 305,
-    unused = 306,
-    temporaryRedirect = 307,
-
-    badRequest = 400,
-    unauthorized = 401,
-    paymentRequired = 402,
-    forbidden = 403,
-    notFound = 404,
-    methodNotAllowed = 405,
-    notAcceptable = 406,
-    proxyAuthenticationRequired = 407,
-    requestTimeout = 408,
-    conflict = 409,
-    gone = 410,
-    lengthRequired = 411,
-    preconditionFailed = 412,
-    requestEntityTooLarge = 413,
-    requestUriTooLong = 414,
-    unsupportedMediaType = 415,
-    requestedRangeNotSatisfiable = 416,
-    expectationFailed = 417,
-    isTeapot = 418,
-    tooManyRequest = 429,
-
-    internalServerError = 500,
-    notImplemented = 501,
-    badGateway = 502,
-    serviceUnavailable = 503,
-    gatewayTimeout = 504,
-    httpVersionNotSupported = 505,
-
-    // Customs
-    unknown = 1000,
-    invalidUrl = 1001,
-    invalidUrlRequest = 1002,
-    invalidUrlResponse = 1003,
-    invalidData = 1004,
-    urlSessionError = 1005,
-    jsonParsingError = 1006,
-    objectParsingError = 1007,
-    imageParsingError = 1008,
-    invalidResponseMimeType = 1009
-
-    public var string: String {
-        let s = String(describing: self)
-        return try! NSRegularExpression(pattern: "([A-Z])").stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: " $0")
-    }
-
-    init(_ statusCode: Int = 1000) {
-        self = HTTPStatusCode(rawValue: statusCode) ?? .unknown
-    }
-}
-
-public enum RequestStatus {
-    case pending, running, completed, errored, cancelled
-
-    public func `in`(_ statuses: [RequestStatus]) -> Bool {
-        return statuses.contains(self)
-    }
-}
-
-public enum RequestLogLevel: UInt8 {
-    case none = 0, error = 1, warning = 2, info = 3, debug = 4
-}
-
-fileprivate class RequestLogger {
-    static func log(_ requiredLevel: RequestLogLevel, _ s: String) {
-        guard Request.logLevel.rawValue >= requiredLevel.rawValue else { return }
-
-        let logString = String(describing: requiredLevel).uppercased()
-        print("(FrigKit-Request) \(logString): \(s)")
-    }
-}
-
-fileprivate struct RequestValidation {
-    let range: Range<Int>?
-    let mimeType: String?
-
-    func validate(response: HTTPURLResponse) -> RequestError? {
-        if let range = self.range {
-            guard range.contains(response.statusCode) else {
-                return RequestError(statusCode: HTTPStatusCode(response.statusCode))
-            }
-        }
-
-        if let mimeType = self.mimeType, let responseMimeType = response.mimeType {
-            guard mimeType == responseMimeType else {
-                return RequestError(statusCode: .invalidResponseMimeType)
-            }
-        }
-
-        return nil
-    }
-}
-
-public struct RequestError: CustomStringConvertible {
-    public let url: String?
-    public let method: String?
-    public let statusCode: HTTPStatusCode
-
-    public var description: String {
-        if let url = self.url, let method = self.method {
-            return "\(method) (\(url)): \(self.statusCode.rawValue) \(self.statusCode.string)"
-        }
-
-        return "\(self.statusCode.rawValue) \(self.statusCode.string)"
-    }
-
-    init(url: URL? = nil, method: HTTPMethod? = nil, statusCode: HTTPStatusCode = HTTPStatusCode()) {
-        self.url = url != nil ? url!.absoluteString : nil
-        self.method = method?.rawValue ?? nil
-        self.statusCode = statusCode
-    }
-}
-
-public class RequestHeaders {
-    fileprivate var headers = [String: String]()
-
-    init() {
-        if Request.useDefaultHeaders { self.addDefaultHeaders() }
-    }
-
-    convenience init(_ headers: [String: String]) {
-        self.init()
-        for (key, value) in headers {
-            self.headers[key] = value
-        }
-    }
-
-    convenience init(_ headers: [RequestHeader]) {
-        self.init()
-        for header in headers {
-            self.headers[header.name] = header.value
-        }
-    }
-
-    subscript(name: String) -> String? {
-        get { return self.headers[name] }
-        set { self.headers[name] = newValue }
-    }
-
-    public func add(_ header: RequestHeader) {
-        self.headers[header.name] = header.value
-    }
-
-    public func add(name: String, value: String) {
-        self.headers[name] = value
-    }
-
-    private func addDefaultHeaders() {
-        self.add(RequestHeader.defaultAcceptEncoding)
-        self.add(RequestHeader.defaultAcceptLanguage)
-        self.add(RequestHeader.defaultUserAgent)
-    }
-}
-
-public class RequestHeader: CustomStringConvertible {
-    public var name: String
-    public var value: String
-
-    public var description: String {
-        return "\(self.name): \(self.value)"
-    }
-
-    init (name: String, value: String) {
-        self.name = name
-        self.value = value
-    }
-
-    public static let defaultAcceptEncoding: RequestHeader = {
-        var encodings = ["gzip", "deflate"]
-        if #available(iOS 11.0, macOS 10.13, tvOS 11.0, watchOS 4.0, *) { encodings.insert("br", at: 0) }
-        return RequestHeader.acceptEncoding(encodings.qualityEncoded)
-    }()
-
-    public static let defaultAcceptLanguage: RequestHeader = {
-        RequestHeader.acceptLanguage(Locale.preferredLanguages.prefix(6).qualityEncoded)
-    }()
-
-    public static let defaultUserAgent: RequestHeader = {
-        guard let info = Bundle.main.infoDictionary else {
-            return RequestHeader.userAgent("FrigKit")
-        }
-
-        let appName = info[kCFBundleExecutableKey as String] as? String ?? "Unknown"
-        let appVersion = info["CFBundleShortVersionString"] as? String ?? "0.0"
-        let appBundle = info[kCFBundleIdentifierKey as String] as? String ?? "Unknown"
-        let appBuild = info[kCFBundleVersionKey as String] as? String ?? "-1"
-        let osName: String = {
-            #if os(iOS)
-            return "iOS"
-            #elseif os(watchOS)
-            return "watchOS"
-            #elseif os(macOS)
-            return "macOS"
-            #elseif os(tvOS)
-            return "tvOS"
-            #elseif os(Linux)
-            return "Linux"
-            #else
-            return "Unknown"
-            #endif
-        }()
-        let osInfo = ProcessInfo.processInfo.operatingSystemVersion
-        let osTag = "\(osName) \(osInfo.majorVersion).\(osInfo.minorVersion).\(osInfo.patchVersion)"
-        let frigKitTag = "FrigKit/\(Bundle(for: Request.self).infoDictionary?["CFBundleShortVersionString"] ?? "0.0")"
-
-        return RequestHeader.userAgent("\(appName)/\(appVersion) (\(appBundle); build:\(appBuild); \(osTag)) \(frigKitTag)")
-    }()
-
-    public static func authorization(_ value: String) -> RequestHeader {
-        return RequestHeader(name: "Authorization", value: value)
-    }
-
-    public static func authorization(username: String, password: String) -> RequestHeader {
-        let credential = Data("\(username):\(password)".utf8).base64EncodedString()
-        return RequestHeader.authorization("Basic \(credential)")
-    }
-
-    public static func authorization(token: String) -> RequestHeader {
-        return RequestHeader.authorization("Bearer \(token)")
-    }
-
-    public static func acceptEncoding(_ value: String) -> RequestHeader {
-        return RequestHeader(name: "Accept-Encoding", value: value)
-    }
-
-    public static func acceptLanguage(_ value: String) -> RequestHeader {
-        return RequestHeader(name: "Accept-Language", value: value)
-    }
-
-    public static func contentDisposition(_ value: String) -> RequestHeader {
-        return RequestHeader(name: "Content-Disposition", value: value)
-    }
-
-    public static func contentType(_ value: String) -> RequestHeader {
-        return RequestHeader(name: "Content-Type", value: value)
-    }
-
-    public static func contentLength(_ value: Int) -> RequestHeader {
-        return RequestHeader(name: "Content-Length", value: String(value))
-    }
-
-    public static func userAgent(_ value: String) -> RequestHeader {
-        return RequestHeader(name: "User-Agent", value: value)
-    }
-}
-
-fileprivate protocol RequestResponse {
-    func parse(data: Data?, error: RequestError?)
-}
-
-public class RawResponse: RequestResponse {
-    fileprivate var _statusCode: Int?
-    public var statusCode: Int { return self._statusCode ?? 1000 }
-
-    fileprivate var _headers: [String: String]?
-    public var headers: [String: String] { return self._headers ?? [:] }
-
-    fileprivate var _error: RequestError?
-    public var error: RequestError? { return self._error }
-
-    private var _rawData: Data?
-    public var rawData: Data? { return self._rawData }
-
-    fileprivate func parse(data: Data?, error: RequestError?) {
-        self._rawData = data
-        self._error = error
-    }
-}
-
-public class TextResponse: RawResponse {
-    private var _text: String?
-    public var text: String? { return self._text }
-
-    override func parse(data: Data?, error: RequestError?) {
-        if let data = data {
-            self._text = String(data: data, encoding: .utf8)
-        }
-
-        super.parse(data: data, error: error)
-    }
-}
-
-public class JSONResponse: RawResponse {
-    private var _isArray: Bool = false
-    public var isArray: Bool { return self._isArray }
-
-    private var _json: Any?
-    public var json: Any { return self._json as Any }
-
-    override func parse(data: Data?, error: RequestError?) {
-        if let data = data {
-            do {
-                self._json = try JSONSerialization.jsonObject(with: data)
-
-                if self._json as? [[String: Any]] != nil {
-                    self._isArray = true
-                }
-            } catch {
-                self._error = RequestError(statusCode: .jsonParsingError)
-            }
-        }
-
-        super.parse(data: data, error: error)
-    }
-}
-
-public class ObjectResponse<T: Decodable>: JSONResponse {
-    private var _object: T?
-    public var object: T? { return self._object }
-
-    override func parse(data: Data?, error: RequestError?) {
-        if let data = data {
-            do {
-                self._object = try JSONDecoder().decode(T.self, from: data)
-            } catch {
-                self._error = RequestError(statusCode: .objectParsingError)
-            }
-        }
-
-        super.parse(data: data, error: error)
-    }
-}
-
 public class Request {
-    public static var logLevel: RequestLogLevel = .warning
+    public static var logLevel: LogLevel = .warning
     public static var autoValidate: Bool = true
     public static var useDefaultHeaders: Bool = true
 
     private let requestId: String = NSUUID().uuidString
 
-    private var _status: RequestStatus = .pending
-    public var status: RequestStatus { return self._status }
+    private var _status: Status = .pending
+    public var status: Status { return self._status }
 
-    private var _error: RequestError?
-    public var error: RequestError? { return self._error }
+    private var _error: Error?
+    public var error: Error? { return self._error }
 
-    private var validation: RequestValidation?
+    private var validation: Validation?
 
     fileprivate var urlRequest: URLRequest?
-    fileprivate var response: RawResponse?
+    fileprivate var response: Response?
     fileprivate var task: URLSessionTask?
 
     public var cachePolicy: URLRequest.CachePolicy {
@@ -439,16 +53,22 @@ public class Request {
         set { self.urlRequest?.timeoutInterval = newValue }
     }
 
-    convenience init(_ url: String, method: HTTPMethod = .get, parameters: [String: String] = [:], headers: RequestHeaders = RequestHeaders()) {
-        self.init(URL(string: url), method: method, parameters: parameters, headers: headers)
+    convenience init(_ url: String,
+                     method: Method = .get,
+                     parameters: [String: String] = [:],
+                     headers: Headers = Headers()) {
+        self.init(URL(string: url),
+                  method: method,
+                  parameters: parameters,
+                  headers: headers)
     }
 
     init(request: URLRequest) {
-        RequestLogger.log(.debug, "creating (\(self.requestId)) from URLRequest object")
+        Logger.log(.debug, requestId, "init from URLRequest")
 
-        let method: HTTPMethod = HTTPMethod(request.httpMethod)
-        guard let url = request.url else {
-            self.set(error: RequestError(method: method, statusCode: .invalidUrl))
+        let method: Method = Method(request.httpMethod)
+        guard request.url != nil else {
+            self.set(error: Error(method: method, statusCode: .invalidUrl))
             return
         }
 
@@ -456,15 +76,16 @@ public class Request {
         self.urlRequest!.method = method
 
         if Request.autoValidate { self.validate() }
-
-        RequestLogger.log(.debug, "\(method.rawValue) \(url)")
     }
 
-    init(_ url: URL?, method: HTTPMethod = .get, parameters: [String: String] = [:], headers: RequestHeaders = RequestHeaders()) {
-        RequestLogger.log(.debug, "creating (\(self.requestId)) from arguments")
+    init(_ url: URL?,
+         method: Method = .get,
+         parameters: [String: String] = [:],
+         headers: Headers = Headers()) {
+        Logger.log(.debug, requestId, "init from arguments")
 
         guard let url = url else {
-            self.set(error: RequestError(method: method, statusCode: .invalidUrl))
+            self.set(error: Error(method: method, statusCode: .invalidUrl))
             return
         }
 
@@ -474,87 +95,133 @@ public class Request {
         self.urlRequest!.cachePolicy = .reloadRevalidatingCacheData
 
         if Request.autoValidate { self.validate() }
-
-        RequestLogger.log(.debug, "\(method.rawValue) \(url)")
     }
 
-    public static func == (_ lhs: Request, _ rhs: Request) -> Bool { return lhs.requestId == rhs.requestId }
-    public static func != (_ lhs: Request, _ rhs: Request) -> Bool { return (lhs == rhs) }
+    public static func == (_ lhs: Request, _ rhs: Request) -> Bool {
+        return lhs.requestId == rhs.requestId
+    }
 
-    private func set(error: RequestError) {
+    public static func != (_ lhs: Request, _ rhs: Request) -> Bool {
+        return (lhs == rhs)
+    }
+
+    private func set(error: Error) {
         self._error = error
         self._status = .errored
-        RequestLogger.log(.error, "\(error.description)")
+        Logger.log(.error, requestId, "\(error.description)")
     }
 
     @discardableResult
     public func validate(range: Range<Int>? = nil, mimeType: String? = nil) -> Request {
-        if self.validation == nil {
-            RequestLogger.log(.debug, "turning on validation module")
-        }
+        let range = range == nil && mimeType == nil ? 200..<300 : range
+        self.validation = Validation(range: range, mimeType: mimeType)
 
-        if range == nil && mimeType == nil {
-            self.validation = RequestValidation(range: 200..<300, mimeType: mimeType)
-        } else {
-            self.validation = RequestValidation(range: range, mimeType: mimeType)
-        }
-
-
-        if let mimeType = mimeType {
-            RequestLogger.log(.debug, "using \(mimeType) as validation mime type")
-        }
-
-        if let range = self.validation!.range {
-            RequestLogger.log(.debug, "using \(range) as validation range")
-        }
+        Logger.log(.info, requestId, self.validation!.description)
 
         return self
     }
 
-    @discardableResult
-    public func addHeader(_ header: RequestHeader) -> Request {
+    public func addHeader(_ header: Header) {
         self.urlRequest?.addHeader(header)
-        return self
     }
 
     public func cancel() {
-        RequestLogger.log(.info, "cancelling (\(self.requestId))")
+        Logger.log(.info, requestId, "cancelling request")
         guard !self.status.in([.cancelled, .completed, .errored]) else { return }
 
         self._status = .cancelled
         self.task?.cancel()
 
-        RequestLogger.log(.info, "cancelled query to \(self.urlRequest!.method.rawValue) \(self.urlRequest!.url?.absoluteString ?? "nil")")
+        Logger.log(.info, requestId, "cancelled request")
+    }
+
+    private func setRunningState() -> Bool {
+        guard !self.status.in([.running, .cancelled]) else {
+            Logger.log(.warning, requestId, "not running request, status was: \(self._status)")
+            return false
+        }
+
+        guard self.urlRequest != nil else {
+            self.set(error: Error(statusCode: .invalidUrlRequest))
+            return false
+        }
+
+        self._status = .running
+        return true
+    }
+
+    private func setCompletedState(error: Error?) {
+        if let error = error {
+            Logger.log(.info, self.requestId, "completed request with error")
+            Logger.log(.error, self.requestId, String(describing: error.errorObject))
+            self._status = .errored
+        } else {
+            Logger.log(.info, self.requestId, "completed request")
+            self._status = .completed
+        }
+    }
+
+    private func parseBody(_ data: Data) -> String {
+        guard let type = self.response!.headers["Content-Type"] else {
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+
+        switch type {
+        case ContentType.json.rawValue:
+            if let object = try? JSONSerialization.jsonObject(with: data, options: []),
+                let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted]),
+                let json = String(data: data, encoding: .utf8) {
+                return json
+            }
+
+            fallthrough
+        case ContentType.jpeg.rawValue, ContentType.png.rawValue, ContentType.bmp.rawValue, ContentType.gif.rawValue, ContentType.mp3.rawValue, ContentType.mpeg.rawValue, ContentType.binary.rawValue:
+            return ""
+        default:
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+
     }
 
     private func resume(callback: @escaping () -> Void) {
-        RequestLogger.log(.debug, "sending (\(self.requestId))")
+        guard self.setRunningState() else { return callback() }
 
-        guard self.urlRequest != nil else {
-            self.set(error: RequestError(statusCode: .invalidUrlRequest))
-            return callback()
+        Logger.log(.info, requestId, "starting request")
+        var debugInfo: String = ""
+
+        debugInfo += String(describing: self.urlRequest!.method).uppercased() + " "
+        debugInfo += self.urlRequest!.url?.absoluteString ?? ""
+
+        Logger.log(.info, requestId, debugInfo)
+
+        if Request.logLevel == .debug {
+            debugInfo = "\n\n\n\(debugInfo)\n\n\(self.urlRequest!.headers.description)"
         }
-
-        guard !self.status.in([.running, .cancelled]) else {
-            RequestLogger.log(.warning, "stoped sending (\(self.requestId)) because its status was \(self._status)")
-            return callback()
-        }
-        self._status = .running
-
-        RequestLogger.log(.info, "\(self.urlRequest!.method.rawValue) \(self.urlRequest!.url?.absoluteString ?? "nil")")
 
         self.task = URLSession.shared.dataTask(with: self.urlRequest!) { (data, response, error) in
-            RequestLogger.log(.debug, "response from (\(self.requestId))")
-
-            if error != nil {
-                self.set(error: RequestError(url: self.urlRequest!.url, method: self.urlRequest!.method, statusCode: .urlSessionError))
+            if let error = error {
+                self.set(error: Error(url: self.urlRequest!.url,
+                                      method: self.urlRequest!.method,
+                                      statusCode: .urlSessionError,
+                                      error: error))
                 self.response!.parse(data: data, error: self._error)
+
+                Logger.log(.debug, self.requestId, debugInfo)
+
                 return DispatchQueue.main.async { return callback() }
             }
 
             if let response = response as? HTTPURLResponse {
+                let code = StatusCode(response.statusCode)
+                let headers = response.allHeaderFields as? [String: String] ?? [:]
+
                 self.response!._statusCode = response.statusCode
-                self.response!._headers = response.allHeaderFields as? [String: String]
+                self.response!._headers = headers
+
+                if Request.logLevel == .debug {
+                    debugInfo += "\n\n\n\(code.rawValue) \(code.string)"
+                    debugInfo += "\n\n\(headers.map { "\($0.0): \($0.1)" }.joined(separator: "\n"))\n"
+                }
 
                 if let error = self.validation?.validate(response: response) {
                     self.set(error: error)
@@ -563,48 +230,63 @@ public class Request {
             }
 
             guard let data = data else {
-                self.set(error: RequestError(url: self.urlRequest!.url, method: self.urlRequest!.method, statusCode: .invalidData))
+                self.set(error: Error(url: self.urlRequest!.url,
+                                      method: self.urlRequest!.method,
+                                      statusCode: .invalidData))
                 self.response!.parse(data: nil, error: self._error)
+
+                Logger.log(.debug, self.requestId, debugInfo)
+
                 return DispatchQueue.main.async { return callback() }
             }
 
-            RequestLogger.log(.debug, "parsing (\(self.requestId))")
+            Logger.log(.info, self.requestId, "parsing data")
+
+            if Request.logLevel == .debug {
+                debugInfo += "\n\(self.parseBody(data))\n"
+                Logger.log(.debug, self.requestId, debugInfo)
+            }
+
 
             self.response!.parse(data: data, error: self._error)
-            self._status = .completed
+
+            self.setCompletedState(error: self.response!.error)
+
             DispatchQueue.main.async { return callback() }
         }
 
         self.task!.resume()
     }
+}
 
-    func send(callback: ((RawResponse) -> Void)? = nil) {
+extension Request {
+    func send(callback: ((Response) -> Void)? = nil) {
         if let callback = callback {
             self.raw(callback: callback)
         } else {
-            self.response = RawResponse()
+            self.response = Response()
             self.resume {}
         }
     }
 
-    func raw(callback: @escaping (RawResponse) -> Void) {
-        self.response = RawResponse()
+    func raw(callback: @escaping (Response) -> Void) {
+        self.response = Response()
         self.resume { callback(self.response!) }
     }
 
-    func text(callback: @escaping (TextResponse) -> Void) {
-        self.response = TextResponse()
-        self.resume { callback(self.response as! TextResponse) }
+    func text(callback: @escaping (Response.Text) -> Void) {
+        self.response = Response.Text()
+        self.resume { callback(self.response as! Response.Text) }
     }
 
-    func json(callback: @escaping (JSONResponse) -> Void) {
-        self.response = JSONResponse()
-        self.resume { callback(self.response as! JSONResponse) }
+    func json(callback: @escaping (Response.JSON) -> Void) {
+        self.response = Response.JSON()
+        self.resume { callback(self.response as! Response.JSON) }
     }
 
-    func object<T>(callback: @escaping (ObjectResponse<T>) -> Void) {
-        self.response = ObjectResponse<T>()
-        self.resume { callback(self.response as! ObjectResponse<T>) }
+    func object<T>(callback: @escaping (Response.Object<T>) -> Void) {
+        self.response = Response.Object<T>()
+        self.resume { callback(self.response as! Response.Object<T>) }
     }
 }
 
@@ -630,15 +312,15 @@ extension Request {
         let body = params.map { "\($0.0)=\($0.1)" }.joined(separator: "&")
         self.urlRequest?.httpBody = body.data(using: .utf8)
 
-        self.urlRequest?.addHeader(RequestHeader.contentType("application/x-www-form-urlencoded"))
+        self.urlRequest?.addHeader(ContentType.formUrlencoded.header())
     }
 
     public func params(json: Any) -> Request {
         do {
             self.urlRequest?.httpBody = try JSONSerialization.data(withJSONObject: json)
-            self.urlRequest?.addHeader(RequestHeader.contentType("application/json"))
+            self.urlRequest?.addHeader(ContentType.json.header())
         } catch {
-            self.set(error: RequestError(statusCode: .jsonParsingError))
+            self.set(error: Error(statusCode: .jsonParsingError))
         }
 
         return self
@@ -647,86 +329,445 @@ extension Request {
     public func params<T: Encodable>(object: T) -> Request {
         do {
             self.urlRequest?.httpBody = try JSONEncoder().encode(object)
-            self.urlRequest?.addHeader(RequestHeader.contentType("application/json"))
+            self.urlRequest?.addHeader(ContentType.json.header())
         } catch {
-            self.set(error: RequestError(statusCode: .jsonParsingError))
+            self.set(error: Error(statusCode: .jsonParsingError))
         }
-
-        return self
-    }
-
-    public func params(multipart params: [String: Any]) -> Request {
-        let boundary = "Frigkit+\(arc4random())\(arc4random())"
-        let formData = MultipartData(boundary: boundary)
-
-        params.forEach { formData.append(name: $0.0, value: "\($0.1)".data(using: .utf8)!) }
-        self.urlRequest?.httpBody = formData.toData()
-
-        self.addHeader(RequestHeader.contentType("multipart/form-data; boundary=\(boundary)"))
-        self.addHeader(RequestHeader.contentLength(self.urlRequest?.httpBody?.count ?? 0))
-
-        return self
-    }
-
-    public func params(multipart formData: MultipartData) -> Request {
-        let boundary = "Frigkit+\(arc4random())\(arc4random())"
-        self.urlRequest?.httpBody = formData.toData()
-
-        self.addHeader(RequestHeader.contentType("multipart/form-data; boundary=\(boundary)"))
-        self.addHeader(RequestHeader.contentLength(self.urlRequest?.httpBody?.count ?? 0))
-
-        return self
-    }
-
-    public func upload(name: String, data: Data, filename: String? = nil, contentType: String = "application/octet-stream") -> Request {
-        let boundary = "Frigkit+\(arc4random())\(arc4random())"
-        let formData = MultipartData(boundary: boundary)
-        formData.append(name: name, value: data, filename: filename, filetype: contentType)
-        self.urlRequest?.httpBody = formData.toData()
-
-        self.addHeader(RequestHeader.contentType("multipart/form-data; boundary=\(boundary)"))
-        self.addHeader(RequestHeader.contentLength(self.urlRequest?.httpBody?.count ?? 0))
 
         return self
     }
 }
 
-public class MultipartData {
-    private let crlf = "\r\n"
-    private let boundary: String
-    private var isFinal: Bool = false
-
-    private let data = NSMutableData()
-
-    init(boundary: String) {
-        self.boundary = boundary
+extension Request {
+    public enum LogLevel: UInt8 {
+        case none = 0, error = 1, warning = 2, info = 3, debug = 4
     }
+}
 
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+extension Request {
+    public enum StatusCode: Int {
+        case
+        `continue` = 100,
+        switchingProtocols = 101,
 
-    public func append(name: String, value: Data, filename: String? = nil, filetype: String? = nil) {
-        guard !self.isFinal else { return }
+        ok = 200,
+        created = 201,
+        accepted = 202,
+        nonAuthoritativeInformation = 203,
+        noContent = 204,
+        resetContent = 205,
+        partialContent = 206,
 
-        var string = "--\(boundary)\(crlf)"
-        string += "Content-Disposition: form-data; name=\"\(name)\""
-        if let filename = filename { string += "; filename=\"\(filename)\"" }
-        string += crlf
-        if let filetype = filetype { string += "Content-Type: \(filetype)\(crlf)" }
-        string += crlf
+        multipleChoices = 300,
+        movedPermanently = 301,
+        found = 302,
+        seeOther = 303,
+        notModified = 304,
+        useProxy = 305,
+        unused = 306,
+        temporaryRedirect = 307,
 
-        self.data.append(string.data(using: .utf8)!)
-        self.data.append(value)
-        self.data.append(crlf.data(using: .utf8)!)
-    }
+        badRequest = 400,
+        unauthorized = 401,
+        paymentRequired = 402,
+        forbidden = 403,
+        notFound = 404,
+        methodNotAllowed = 405,
+        notAcceptable = 406,
+        proxyAuthenticationRequired = 407,
+        requestTimeout = 408,
+        conflict = 409,
+        gone = 410,
+        lengthRequired = 411,
+        preconditionFailed = 412,
+        requestEntityTooLarge = 413,
+        requestUriTooLong = 414,
+        unsupportedMediaType = 415,
+        requestedRangeNotSatisfiable = 416,
+        expectationFailed = 417,
+        isTeapot = 418,
+        tooManyRequest = 429,
 
-    public func toData() -> Data {
-        if !self.isFinal {
-            self.data.append("--\(boundary)--\(crlf)".data(using: .utf8)!)
-            self.isFinal = true
+        internalServerError = 500,
+        notImplemented = 501,
+        badGateway = 502,
+        serviceUnavailable = 503,
+        gatewayTimeout = 504,
+        httpVersionNotSupported = 505,
+
+        // Customs
+        unknown = 1000,
+        invalidUrl = 1001,
+        invalidUrlRequest = 1002,
+        invalidUrlResponse = 1003,
+        invalidData = 1004,
+        urlSessionError = 1005,
+        jsonParsingError = 1006,
+        objectParsingError = 1007,
+        imageParsingError = 1008,
+        invalidResponseMimeType = 1009
+
+        public var string: String {
+            let s = String(describing: self)
+            return try! NSRegularExpression(pattern: "([A-Z])")
+                .stringByReplacingMatches(in: s,
+                                          range: NSRange(s.startIndex...,
+                                                         in: s),
+                                          withTemplate: " $0")
         }
 
-        return self.data as Data
+        init(_ statusCode: Int = 1000) {
+            self = StatusCode(rawValue: statusCode) ?? .unknown
+        }
+    }
+}
+
+extension Request {
+    public enum Method: String {
+        case options = "OPTIONS"
+        case get     = "GET"
+        case head    = "HEAD"
+        case post    = "POST"
+        case put     = "PUT"
+        case patch   = "PATCH"
+        case delete  = "DELETE"
+        case trace   = "TRACE"
+        case connect = "CONNECT"
+
+        init(_ method: String?) {
+            self = Method(rawValue: (method ?? "GET").uppercased()) ?? .get
+        }
+
+        public func `in`(_ methods: [Method]) -> Bool {
+            return methods.contains(self)
+        }
+    }
+}
+
+extension Request {
+    public enum Status {
+        case pending, running, completed, errored, cancelled
+
+        public func `in`(_ statuses: [Status]) -> Bool {
+            return statuses.contains(self)
+        }
+    }
+}
+
+extension Request {
+    public struct Error: CustomStringConvertible {
+        public let url: String?
+        public let method: String?
+        public let statusCode: StatusCode
+        public let errorObject: Swift.Error?
+
+        public var description: String {
+            if let url = self.url, let method = self.method {
+                return "\(method) (\(url)): \(self.statusCode.rawValue) \(self.statusCode.string)"
+            }
+
+            return "\(self.statusCode.rawValue) \(self.statusCode.string)"
+        }
+
+        init(url: URL? = nil,
+             method: Method? = nil,
+             statusCode: StatusCode = StatusCode(),
+             error: Swift.Error? = nil) {
+            self.url = url != nil ? url!.absoluteString : nil
+            self.method = method?.rawValue ?? nil
+            self.statusCode = statusCode
+            self.errorObject = error
+        }
+    }
+}
+
+extension Request {
+    private struct Validation: CustomStringConvertible {
+        let range: Range<Int>?
+        let mimeType: String?
+
+        public var description: String {
+            var str: String = ""
+            str += "Validator "
+            str += "<mime: \(self.mimeType ?? "nil")> "
+            str += "<range: \(String(describing: self.range))>"
+            return str
+        }
+
+        func validate(response: HTTPURLResponse) -> Error? {
+            if let range = self.range {
+                guard range.contains(response.statusCode) else {
+                    return Error(statusCode: StatusCode(response.statusCode))
+                }
+            }
+
+            if let mimeType = self.mimeType, let responseMimeType = response.mimeType {
+                guard mimeType == responseMimeType else {
+                    return Error(statusCode: .invalidResponseMimeType)
+                }
+            }
+
+            return nil
+        }
+    }
+}
+
+extension Request {
+    public class Headers: CustomStringConvertible {
+        fileprivate var headers = [String: String]()
+
+        public var description: String {
+            self.headers.map { "\($0.0): \($0.1)" }.joined(separator: "\n")
+        }
+
+        init() {
+            if Request.useDefaultHeaders { self.addDefaultHeaders() }
+        }
+
+        convenience init(_ headers: [String: String]) {
+            self.init()
+            for (key, value) in headers {
+                self.headers[key] = value
+            }
+        }
+
+        convenience init(_ headers: [Header]) {
+            self.init()
+            for header in headers {
+                self.headers[header.name] = header.value
+            }
+        }
+
+        subscript(name: String) -> String? {
+            get { return self.headers[name] }
+            set { self.headers[name] = newValue }
+        }
+
+        public func add(_ header: Header) {
+            self.headers[header.name] = header.value
+        }
+
+        public func add(name: String, value: String) {
+            self.headers[name] = value
+        }
+
+        private func addDefaultHeaders() {
+            self.add(.defaultAcceptEncoding)
+            self.add(.defaultAcceptLanguage)
+            self.add(.defaultUserAgent)
+        }
+    }
+}
+
+extension Request {
+    public struct Header: CustomStringConvertible {
+        public var name: String
+        public var value: String
+
+        public var description: String {
+            return "\(self.name): \(self.value)"
+        }
+
+        public static let defaultAcceptEncoding: Header = {
+            var encodings = ["gzip", "deflate"]
+            if #available(iOS 11.0, macOS 10.13, tvOS 11.0, watchOS 4.0, *) {
+                encodings.insert("br", at: 0)
+            }
+
+            return Header(name: "Accept-Encoding", value: encodings.qualityEncoded)
+        }()
+
+        public static let defaultAcceptLanguage: Header = {
+            Header(name: "Accept-Language",
+                   value: Locale.preferredLanguages.prefix(6).qualityEncoded)
+        }()
+
+        public static let defaultUserAgent: Header = {
+            let lib = "FrigKit"
+            guard let info = Bundle.main.infoDictionary else {
+                return Header(name: "User-Agent", value: lib)
+            }
+
+            let os: String = {
+                #if os(iOS)
+                return "iOS"
+                #elseif os(watchOS)
+                return "watchOS"
+                #elseif os(macOS)
+                return "macOS"
+                #elseif os(tvOS)
+                return "tvOS"
+                #elseif os(Linux)
+                return "Linux"
+                #else
+                return "Unknown"
+                #endif
+            }()
+            let osInfo = ProcessInfo.processInfo.operatingSystemVersion
+
+            var ua = ""
+            // app name
+            ua += info[kCFBundleExecutableKey as String] as? String ?? "Unknown"
+            ua += "/"
+            // app version
+            ua += info["CFBundleShortVersionString"] as? String ?? "0.0"
+            // bundle
+            ua += " ("
+            ua += info[kCFBundleIdentifierKey as String] as? String ?? "Unknown"
+            ua += "; build:"
+            // build version
+            ua += info[kCFBundleVersionKey as String] as? String ?? "-1"
+            ua += "; "
+             // os info
+            ua += "\(os) \(osInfo.majorVersion).\(osInfo.minorVersion).\(osInfo.patchVersion)"
+            ua += ") "
+            // lib info
+            ua += lib
+
+            return Header(name: "User-Agent", value: ua)
+        }()
+
+        public static func authorization(_ value: String) -> Header {
+            return Header(name: "Authorization", value: value)
+        }
+
+        public static func authorization(username: String, password: String) -> Header {
+            let credential = Data("\(username):\(password)".utf8).base64EncodedString()
+            return Header.authorization("Basic \(credential)")
+        }
+
+        public static func authorization(token: String) -> Header {
+            return Header.authorization("Bearer \(token)")
+        }
+    }
+
+    public enum ContentType: String {
+        case text = "text/plain"
+        case binary = "application/octet-stream"
+        case jpeg = "image/jpeg"
+        case png = "image/png"
+        case webp = "image/webp"
+        case gif = "image/gif"
+        case bmp = "image/bmp"
+        case mp3 = "audio/mpeg"
+        case mpeg = "video/mpeg"
+        case js = "text/javascript"
+        case json = "application/json"
+        case xml = "application/xml"
+        case yml = "application/x-yaml"
+        case html = "text/html"
+        case css = "text/css"
+        case csv = "text/csv"
+        case formUrlencoded = "application/x-www-form-urlencoded"
+
+        func header() -> Header {
+            return Header(name: "Content-Type", value: self.rawValue)
+        }
+    }
+}
+
+extension Request {
+    private class Logger {
+        static func log(_ requiredLevel: LogLevel, _ id: String, _ s: String) {
+            guard Request.logLevel.rawValue >= requiredLevel.rawValue else { return }
+
+            let logString = String(describing: requiredLevel).uppercased()
+            print("Request (\(logString)) <\(id)>: \(s)")
+        }
+    }
+}
+
+public class Response {
+    fileprivate var _statusCode: Int?
+    public var statusCode: Int { return self._statusCode ?? 1000 }
+
+    fileprivate var _headers: [String: String]?
+    public var headers: [String: String] { return self._headers ?? [:] }
+
+    fileprivate var _error: Request.Error?
+    public var error: Request.Error? { return self._error }
+
+    private var _rawData: Data?
+    public var rawData: Data? { return self._rawData }
+
+    fileprivate func parse(data: Data?, error: Request.Error?) {
+        self._rawData = data
+        self._error = error
+    }
+
+    public class Text: Response {
+        private var _text: String?
+        public var text: String? { return self._text }
+
+        override func parse(data: Data?, error: Request.Error?) {
+            if let data = data {
+                self._text = String(data: data, encoding: .utf8)
+            }
+
+            super.parse(data: data, error: self._error ?? error)
+        }
+    }
+
+    public class JSON: Response {
+        private var _isArray: Bool = false
+        public var isArray: Bool { return self._isArray }
+
+        private var _json: Any?
+        public var json: Any { return self._json as Any }
+
+        override func parse(data: Data?, error: Request.Error?) {
+            if let data = data {
+                do {
+                    self._json = try JSONSerialization.jsonObject(with: data)
+
+                    if self._json as? [[String: Any]] != nil {
+                        self._isArray = true
+                    }
+                } catch let error {
+                    self._error = Request.Error(statusCode: .jsonParsingError, error: error)
+                }
+            }
+
+            super.parse(data: data, error: self._error ?? error)
+        }
+    }
+
+    public class Object<T: Decodable>: JSON {
+        private var _object: T?
+        public var object: T? { return self._object }
+
+        override func parse(data: Data?, error: Request.Error?) {
+            if let data = data {
+                do {
+                    self._object = try JSONDecoder().decode(T.self, from: data)
+                } catch let error {
+                    self._error = Request.Error(statusCode: .objectParsingError, error: error)
+                }
+            }
+
+            super.parse(data: data, error: self.error ?? error)
+        }
+    }
+}
+
+private extension URLRequest {
+    var headers: Request.Headers {
+        get { return Request.Headers(self.allHTTPHeaderFields ?? [:]) }
+        set { self.allHTTPHeaderFields = newValue.headers }
+    }
+
+    mutating func addHeader(_ header: Request.Header) {
+        self.addValue(header.value, forHTTPHeaderField: header.name)
+    }
+
+    var method: Request.Method {
+        get { return Request.Method(rawValue: self.httpMethod ?? "GET") ?? .get }
+        set { self.httpMethod = newValue.rawValue }
+    }
+}
+
+private extension Collection where Element == String {
+    var qualityEncoded: String {
+        return self.enumerated().map { "\($1);q=\(1.0 - (Double($0) * 0.1))" }.joined(separator: ", ")
     }
 }
