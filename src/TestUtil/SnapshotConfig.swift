@@ -1,5 +1,6 @@
 import UIKit
 import SwiftUI
+import SnapshotTesting
 
 public struct SnapshotConfig {
     let layout: Layout

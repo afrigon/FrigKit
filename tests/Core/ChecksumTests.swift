@@ -1,3 +1,5 @@
+import XCTest
+import Nimble
 @testable import FrigKit
 import FrigKitTestUtil
 

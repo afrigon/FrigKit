@@ -1,5 +1,6 @@
+import XCTest
+import Nimble
 @testable import FrigKit
-import FrigKitTestUtil
 
 final class StringTests: XCTestCase {
     func test_empty_string_is_hexadecimal() {
