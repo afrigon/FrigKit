@@ -1,8 +1,13 @@
 import SwiftUI
 
 public struct ResponsiveValue {
-    var compact: CGFloat
-    var regular: CGFloat
+    public var compact: CGFloat
+    public var regular: CGFloat
+
+    public init(compact: CGFloat, regular: CGFloat) {
+        self.compact = compact
+        self.regular = regular
+    }
 
     public func value(for sizeClass: UserInterfaceSizeClass?) -> CGFloat {
         guard let sizeClass else {
