@@ -19,7 +19,3 @@ public struct ResponsiveValue {
         }
     }
 }
-
-public struct ResponsiveStack: View {
-
-}
