@@ -40,6 +40,36 @@ extension Color {
             opacity: opacity
         )
     }
+
+    private func transpose(by delta: CGFloat) -> Color {
+        guard let components = self.cgColor?.components, components.count >= 4 else {
+            return self
+        }
+
+        let r = max(0, min(1, components[0] + delta))
+        let g = max(0, min(1, components[1] + delta))
+        let b = max(0, min(1, components[2] + delta))
+
+        return .init(
+            .sRGB,
+            red: r,
+            green: g,
+            blue: b,
+            opacity: components[3]
+        )
+    }
+
+    public func lighter(by delta: CGFloat = 0.1) -> Color {
+        self.transpose(by: delta)
+    }
+
+    public func darker(by delta: CGFloat = 0.1) -> Color {
+        self.transpose(by: -delta)
+    }
+
+    public func linearGradient(startPoint: UnitPoint = .top, endPoint: UnitPoint = .bottom) -> LinearGradient {
+        LinearGradient(colors: [self.darker(), self.lighter()], startPoint: startPoint, endPoint: endPoint)
+    }
 }
 
 public struct ColorSet: View {
