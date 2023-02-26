@@ -28,7 +28,7 @@ extension Font.Weight: CustomStringConvertible {
 }
 
 extension Font {
-    private static func custom(
+    public static func custom(
         _ name: String,
         size: CGFloat,
         weight: Weight = .regular,
