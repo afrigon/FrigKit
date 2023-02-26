@@ -2,7 +2,7 @@ public protocol Identifier: Identifiable, Codable, Sendable, Equatable, Hashable
     init(id: ID)
 }
 
-extension Identifier {
+public extension Identifier {
     var description: String {
         id.description
     }
@@ -20,7 +20,7 @@ extension Identifier {
 
 public protocol StringIdentifier: Identifier, ExpressibleByStringLiteral where ID == String { }
 
-extension StringIdentifier {
+public extension StringIdentifier {
     init(stringLiteral value: ID) {
         self.init(id: value)
     }
@@ -28,7 +28,7 @@ extension StringIdentifier {
 
 public protocol IntegerIdentifier: Identifier, ExpressibleByIntegerLiteral where ID: BinaryInteger { }
 
-extension IntegerIdentifier {
+public extension IntegerIdentifier {
     init(integerLiteral value: ID) {
         self.init(id: value)
     }
