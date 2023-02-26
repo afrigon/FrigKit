@@ -1,5 +1,5 @@
-@testable import SwiftnessFoundation
-import SwiftnessTestKit
+@testable import FrigKit
+import FrigKitTestUtil
 
 final class ChecksumTests: XCTestCase {
     func test_description() {

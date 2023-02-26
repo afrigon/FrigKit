@@ -1,5 +1,5 @@
-@testable import SwiftnessFoundation
-import SwiftnessTestKit
+@testable import FrigKit
+import FrigKitTestUtil
 
 final class RadixFormatStyleTests: XCTestCase {
     func test_binary() {

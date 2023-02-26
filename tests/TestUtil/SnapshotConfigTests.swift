@@ -1,4 +1,4 @@
-@testable import SwiftnessTestKit
+@testable import FrigKitTestUtil
 
 final class SnapshotConfigTests: XCTestCase {
     private func assertDescription(_ config: SnapshotConfig, toBe expected: String) {
