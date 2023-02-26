@@ -2,13 +2,13 @@ import SwiftUI
 import NukeUI
 
 public struct RemoteImage<Placeholder: View>: View {
-    let image: URL?
+    let url: URL?
     let resizingMode: ImageResizingMode
     let placeholder: () -> Placeholder
 
     public var body: some View {
-        if let image {
-            LazyImage(url: image) { state in
+        if let url {
+            LazyImage(url: url) { state in
                 if let image = state.image {
                     image.resizingMode(resizingMode)
                 } else {
@@ -21,11 +21,20 @@ public struct RemoteImage<Placeholder: View>: View {
     }
 
     public init(
-        image: URL?,
+        _ url: URL?,
+        resizingMode: ImageResizingMode = .aspectFill
+    ) where Placeholder == Color {
+        self.url = url
+        self.resizingMode = resizingMode
+        self.placeholder = { Color.clear }
+    }
+
+    public init(
+        _ url: URL?,
         resizingMode: ImageResizingMode = .aspectFill,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
-        self.image = image
+        self.url = url
         self.resizingMode = resizingMode
         self.placeholder = placeholder
     }
