@@ -1,0 +1,5 @@
+▿ UIEdgeInsets
+  - bottom: 60.0
+  - left: 80.0
+  - right: 80.0
+  - top: 60.0
