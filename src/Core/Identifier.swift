@@ -1,4 +1,4 @@
-protocol Identifier: Identifiable, Codable, Sendable, Equatable, Hashable, CustomStringConvertible where ID: Codable & CustomStringConvertible {
+public protocol Identifier: Identifiable, Codable, Sendable, Equatable, Hashable, CustomStringConvertible where ID: Codable & CustomStringConvertible {
     init(id: ID)
 }
 
@@ -18,7 +18,7 @@ extension Identifier {
     }
 }
 
-protocol StringIdentifier: Identifier, ExpressibleByStringLiteral where ID == String { }
+public protocol StringIdentifier: Identifier, ExpressibleByStringLiteral where ID == String { }
 
 extension StringIdentifier {
     init(stringLiteral value: ID) {
@@ -26,7 +26,7 @@ extension StringIdentifier {
     }
 }
 
-protocol IntegerIdentifier: Identifier, ExpressibleByIntegerLiteral where ID: BinaryInteger { }
+public protocol IntegerIdentifier: Identifier, ExpressibleByIntegerLiteral where ID: BinaryInteger { }
 
 extension IntegerIdentifier {
     init(integerLiteral value: ID) {
