@@ -4,4 +4,8 @@ extension String {
 
         return range(of: pattern, options: .regularExpression) != nil
     }
+
+    func placeholder(size: Int) -> String {
+        String(repeating: "X", count: size)
+    }
 }
