@@ -105,11 +105,11 @@ public struct ColorSet: View {
     }
 
     /// a color set where the dark and light components are inversed
-    var inverse: ColorSet {
+    public var inverse: ColorSet {
         ColorSet(light: dark, dark: light)
     }
 
-    func color(for colorScheme: ColorScheme) -> Color {
+    public func color(for colorScheme: ColorScheme) -> Color {
         switch colorScheme {
             case .light:
                 return light
@@ -122,7 +122,7 @@ public struct ColorSet: View {
 
     /// returns the most contrasting component with the given color
     /// note: assumes dark and light are black and white
-    func contrasting(with color: Color) -> Color {
+    public func contrasting(with color: Color) -> Color {
         guard let components = color.cgColor?.components, components.count >= 3 else {
             return light
         }
