@@ -109,6 +109,17 @@ public struct ColorSet: View {
         ColorSet(light: dark, dark: light)
     }
 
+    func color(for colorScheme: ColorScheme) -> Color {
+        switch colorScheme {
+            case .light:
+                return light
+            case .dark:
+                return dark
+            @unknown default:
+                return light
+        }
+    }
+
     /// returns the most contrasting component with the given color
     /// note: assumes dark and light are black and white
     func contrasting(with color: Color) -> Color {
@@ -116,9 +127,9 @@ public struct ColorSet: View {
             return light
         }
 
-        var r: CGFloat = components[0]
-        var g: CGFloat = components[1]
-        var b: CGFloat = components[2]
+        let r: CGFloat = components[0]
+        let g: CGFloat = components[1]
+        let b: CGFloat = components[2]
 
         // https://en.wikipedia.org/wiki/Luma_(video)
         let luma: CGFloat = 0.299 * r + 0.587 * g + 0.114 * b
@@ -131,26 +142,15 @@ public struct ColorSet: View {
 public struct ForegroundColorSetModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
-    var light: Color
-    var dark: Color
+    var color: ColorSet
 
     public func body(content: Content) -> some View {
-        switch colorScheme {
-            case .light:
-                return content.foregroundColor(light)
-            case .dark:
-                return content.foregroundColor(dark)
-            @unknown default:
-                return content.foregroundColor(light)
-        }
+        color.color(for: colorScheme)
     }
 }
 
 extension View {
     public func foregroundColor(_ color: ColorSet) -> some View {
-        modifier(ForegroundColorSetModifier(
-            light: color.light,
-            dark: color.dark
-        ))
+        modifier(ForegroundColorSetModifier(color: color))
     }
 }
