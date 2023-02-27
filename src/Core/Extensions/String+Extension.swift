@@ -5,7 +5,7 @@ extension String {
         return range(of: pattern, options: .regularExpression) != nil
     }
 
-    public func placeholder(size: Int) -> String {
+    public static func placeholder(size: Int) -> String {
         String(repeating: "X", count: size)
     }
 }
