@@ -128,13 +128,13 @@ public struct ColorSet: View {
     }
 }
 
-struct ForegroundColorSetModifier: ViewModifier {
+public struct ForegroundColorSetModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     var light: Color
     var dark: Color
 
-    func body(content: Content) -> some View {
+    public func body(content: Content) -> some View {
         switch colorScheme {
             case .light:
                 return content.foregroundColor(light)
@@ -147,7 +147,7 @@ struct ForegroundColorSetModifier: ViewModifier {
 }
 
 extension View {
-    func foregroundColor(_ color: ColorSet) -> some View {
+    public func foregroundColor(_ color: ColorSet) -> some View {
         modifier(ForegroundColorSetModifier(
             light: color.light,
             dark: color.dark
