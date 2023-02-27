@@ -145,7 +145,7 @@ public struct ForegroundColorSetModifier: ViewModifier {
     var color: ColorSet
 
     public func body(content: Content) -> some View {
-        color.color(for: colorScheme)
+        content.foregroundColor(color.color(for: colorScheme))
     }
 }
 
